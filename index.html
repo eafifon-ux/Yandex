@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <script src="https://yastatic.net/s3/passport-sdk/autofill/v1/sdk-suggest-with-polyfills-latest.js"></script>
+
+<script src="https://yastatic.net/s3/passport-sdk/autofill/v1/sdk-suggest-token-with-polyfills-latest.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GPC Mail Layer</title>
@@ -128,9 +131,8 @@ textarea{
   <div class="card">
     <h2>Login</h2>
 
-    <button onclick="loginYandex()">
-      Login with Yandex
-    </button>
+    <div id="yandex-login"></div>
+    
 
     <div id="profile" class="hidden">
       <p>
@@ -266,9 +268,9 @@ Replace below with your app id
 */
 
 const CLIENT_ID =
-"REPLACE_WITH_YOUR_YANDEX_APP_ID";
+"e42e122f85384a2e802eef82503119e2";
 
-function loginYandex(){
+{
 
   const redirect =
     encodeURIComponent(
@@ -284,16 +286,6 @@ function loginYandex(){
   location.href = url;
 }
 
-function getToken(){
-
-  const hash =
-    location.hash.substring(1);
-
-  const params =
-    new URLSearchParams(hash);
-
-  return params.get("access_token");
-}
 
 /* =========================
    LOAD PROFILE
@@ -344,6 +336,16 @@ async function loadProfile(){
 
     console.error(err);
   }
+}
+function getToken(){
+
+  const hash =
+    window.location.hash.substring(1);
+
+  const params =
+    new URLSearchParams(hash);
+
+  return params.get("access_token");
 }
 
 loadProfile();
@@ -463,6 +465,40 @@ function addInboxPreview(subject,msg,stamp){
     .prepend(div);
 }
 
+window.onload = async () => {
+
+  await window.YaAuthSuggest.init(
+    {
+      client_id: CLIENT_ID,
+
+      response_type: 'token',
+
+      redirect_uri:
+      'https://eafifon-ux.github.io/Yandex/'
+    },
+
+    'https://eafifon-ux.github.io/Yandex/',
+
+    {
+      view: 'button',
+
+      parentId: 'yandex-login',
+
+      buttonView: 'main',
+
+      buttonTheme: 'light',
+
+      buttonSize: 'm',
+
+      buttonBorderRadius: 12
+    }
+  );
+
+  YaSendSuggestToken(
+    'https://eafifon-ux.github.io/Yandex/'
+  );
+
+};
 </script>
 
 </body>
