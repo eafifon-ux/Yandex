@@ -1,8 +1,454 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
+<head>
+  <script src="https://yastatic.net/s3/passport-sdk/autofill/v1/sdk-suggest-with-polyfills-latest.js"></script>
+
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GPC Mail Layer</title>
+
+<style>
+body{
+  margin:0;
+  font-family:Georgia,serif;
+  background:linear-gradient(to bottom,#eef6ff,#dcecff);
+  color:#123;
+}
+
+header{
+  background:#0b3c8c;
+  color:white;
+  padding:18px;
+  text-align:center;
+  box-shadow:0 2px 10px rgba(0,0,0,.15);
+}
+
+header h1{
+  margin:0;
+  font-size:2em;
+}
+
+header p{
+  margin-top:6px;
+  opacity:.9;
+}
+
+#gpcNow{
+  margin-top:12px;
+  font-size:1.2em;
+  font-weight:bold;
+}
+
+.container{
+  max-width:1000px;
+  margin:25px auto;
+  padding:20px;
+}
+
+.card{
+  background:white;
+  border-radius:16px;
+  padding:20px;
+  margin-bottom:20px;
+  box-shadow:0 4px 14px rgba(0,0,0,.08);
+}
+
+button{
+  border:none;
+  background:#1e6cff;
+  color:white;
+  padding:12px 18px;
+  border-radius:10px;
+  cursor:pointer;
+  font-weight:bold;
+}
+
+button:hover{
+  opacity:.9;
+}
+
+input,textarea{
+  width:100%;
+  margin-top:10px;
+  padding:12px;
+  border-radius:10px;
+  border:1px solid #ccd;
+  font-size:1em;
+  box-sizing:border-box;
+}
+
+textarea{
+  min-height:160px;
+  resize:vertical;
+}
+
+.mail{
+  border-bottom:1px solid #ddd;
+  padding:12px 0;
+}
+
+.mail:last-child{
+  border-bottom:none;
+}
+
+.mail-date{
+  color:#1e6cff;
+  font-weight:bold;
+}
+
+.badge{
+  display:inline-block;
+  background:#e8f1ff;
+  color:#0b3c8c;
+  padding:5px 10px;
+  border-radius:999px;
+  font-size:.9em;
+  margin-top:8px;
+}
+
+.small{
+  opacity:.7;
+  font-size:.9em;
+}
+
+.hidden{
+  display:none;
+}
+</style>
+</head>
+
 <body>
-  <a href="https://oauth.yandex.com/authorize?response_type=code&client_id=YOUR_CLIENT_ID&redirect_uri=https://eafifon-ux.github.io/Yandex/&scope=login:email%20login:info">
-    Login with Yandex
-  </a>
+
+<header>
+  <h1>GPC Mail</h1>
+  <p>Global Perennial Calendar Email Layer</p>
+  <div id="gpcNow"></div>
+</header>
+
+<div class="container">
+
+  <div class="card">
+    <h2>Login</h2>
+
+    <div id="yandex-login"></div>
+    
+
+    <div id="profile" class="hidden">
+      <p>
+        Logged in as:
+        <strong id="userEmail"></strong>
+      </p>
+
+      <div class="badge" id="userGPC"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Compose Mail</h2>
+
+    <input id="to" placeholder="Recipient">
+
+    <input id="subject" placeholder="Subject">
+
+    <textarea id="body"
+placeholder="Write your message..."></textarea>
+
+    <button onclick="previewMail()">
+      Preview GPC Layer
+    </button>
+
+    <div id="preview" style="margin-top:20px;"></div>
+  </div>
+
+  <div class="card">
+    <h2>Inbox Preview</h2>
+
+    <div id="inbox"></div>
+  </div>
+
+</div>
+
+<script>
+
+/* =========================
+   GPC ENGINE
+========================= */
+
+const GPC = {
+
+  epochUTC: Date.UTC(1982,2,24),
+  epochYear: 5979,
+
+  weekEmojis:[
+    '🟠','🟤','🌺',
+    '🌏','🟢','🔵','🟣'
+  ],
+
+  daysFromGregorian(d){
+    return Math.floor(
+      (d.getTime()-this.epochUTC)/86400000
+    );
+  },
+
+  gpcFromDays(days){
+
+    const mod=(a,b)=>((a%b)+b)%b;
+
+    const leapWeeks=(r)=>{
+      let l=0;
+      if(mod(r,7)>=6) l+=7;
+      if(mod(r,49)>=48) l+=7;
+      if(mod(r+29,70)===0) l+=7;
+      return l;
+    };
+
+    let y=this.epochYear;
+
+    while(days>=0){
+
+      const r=y-this.epochYear;
+      const len=364+leapWeeks(r);
+
+      if(days<len) break;
+
+      days-=len;
+      y++;
+    }
+
+    while(days<0){
+
+      y--;
+
+      const r=y-this.epochYear;
+      const len=364+leapWeeks(r);
+
+      days+=len;
+    }
+
+    return {
+      year:y,
+      doy:days+1
+    };
+  }
+
+};
+
+/* =========================
+   DISPLAY CURRENT GPC
+========================= */
+
+function updateCurrentGPC(){
+
+  const days =
+    GPC.daysFromGregorian(new Date());
+
+  const g =
+    GPC.gpcFromDays(days);
+
+  const emoji =
+    GPC.weekEmojis[(g.doy-1)%7];
+
+  document.getElementById("gpcNow")
+    .innerHTML =
+    `${emoji} ${g.year}.${String(g.doy).padStart(3,"0")}`;
+}
+
+updateCurrentGPC();
+
+/* =========================
+   YANDEX LOGIN
+========================= */
+
+/*
+REGISTER APP:
+https://oauth.yandex.com
+
+Replace below with your app id
+*/
+
+const CLIENT_ID =
+"c90a511e2f154e96ae47e58c5eb9f59c";
+
+
+
+
+/* =========================
+   LOAD PROFILE
+========================= */
+
+async function loadProfile(token) {
+  
+  if (!token) return;
+  
+  try {
+    
+    const res = await fetch("https://login.yandex.ru/info", {
+      headers: {
+        Authorization: "OAuth " + token
+      }
+    });
+    
+    const data = await res.json();
+    
+    document.getElementById("profile").classList.remove("hidden");
+    
+    document.getElementById("userEmail").textContent =
+      data.default_email || "Yandex User";
+    
+    const days = GPC.daysFromGregorian(new Date());
+    const g = GPC.gpcFromDays(days);
+    
+    document.getElementById("userGPC").textContent =
+      `Today in GPC: ${g.year}.${String(g.doy).padStart(3, "0")}`;
+    
+  } catch (err) {
+    console.error("Profile load failed:", err);
+  }
+}
+
+/* =========================
+   GPC STAMP
+========================= */
+
+function getGPCStamp(){
+
+  const days =
+    GPC.daysFromGregorian(new Date());
+
+  const g =
+    GPC.gpcFromDays(days);
+
+  const emoji =
+    GPC.weekEmojis[(g.doy-1)%7];
+
+  return `${emoji} ${g.year}.${String(g.doy).padStart(3,"0")}`;
+}
+
+/* =========================
+   DATE CONVERTER
+========================= */
+
+function convertGregorianDates(text){
+
+  return text.replace(
+    /\d{4}-\d{2}-\d{2}/g,
+
+    d=>{
+
+      const date =
+        new Date(d+"T00:00:00Z");
+
+      const g =
+        GPC.gpcFromDays(
+          GPC.daysFromGregorian(date)
+        );
+
+      return `${d} (${g.year}.${String(g.doy).padStart(3,"0")})`;
+    }
+  );
+}
+
+/* =========================
+   PREVIEW MAIL
+========================= */
+
+function previewMail(){
+
+  const to =
+    document.getElementById("to").value;
+
+  const subject =
+    document.getElementById("subject").value;
+
+  let body =
+    document.getElementById("body").value;
+
+  body =
+    convertGregorianDates(body);
+
+  const stamp =
+    getGPCStamp();
+
+  const finalMessage =
+
+`[${stamp}]
+
+${body}
+
+----------------
+Sent in GPC Time`;
+
+  document.getElementById("preview")
+    .innerHTML =
+
+`
+<div class="mail">
+  <strong>To:</strong> ${to}<br>
+  <strong>Subject:</strong> ${subject}<br>
+  <div class="mail-date">${stamp}</div>
+
+  <pre style="white-space:pre-wrap;font-family:inherit;">
+${finalMessage}
+  </pre>
+</div>
+`;
+
+  addInboxPreview(subject,finalMessage,stamp);
+}
+
+/* =========================
+   FAKE INBOX PREVIEW
+========================= */
+
+function addInboxPreview(subject,msg,stamp){
+
+  const div =
+    document.createElement("div");
+
+  div.className = "mail";
+
+  div.innerHTML = `
+    <strong>${subject || "(No Subject)"}</strong>
+    <div class="mail-date">${stamp}</div>
+
+    <div class="small">
+      ${msg.substring(0,120)}...
+    </div>
+  `;
+
+  document
+    .getElementById("inbox")
+    .prepend(div);
+}
+
+window.onload = async () => {
+  
+  const result = await window.YaAuthSuggest.init(
+    {
+      client_id: CLIENT_ID,
+      response_type: 'code',
+      redirect_uri: 'https://eafifon-ux.github.io/Yandex/'
+    },
+    'https://eafifon-ux.github.io/Yandex/',
+    {
+      view: 'button',
+      parentId: 'yandex-login',
+      buttonView: 'main',
+      buttonTheme: 'light',
+      buttonSize: 'm',
+      buttonBorderRadius: 12
+    }
+  );
+  
+  if (result?.handler) {
+    result.handler().then(({ access_token }) => {
+      loadProfile(access_token);
+    });
+  }
+};
+
+</script>
+
 </body>
 </html>
