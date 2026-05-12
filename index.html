@@ -427,7 +427,7 @@ window.onload = async () => {
   const result = await window.YaAuthSuggest.init(
     {
       client_id: CLIENT_ID,
-      response_type: 'token',
+      response_type: 'code',
       redirect_uri: 'https://eafifon-ux.github.io/Yandex/'
     },
     'https://eafifon-ux.github.io/Yandex/',
@@ -447,14 +447,6 @@ window.onload = async () => {
     });
   }
 };
-
-setTimeout(() => {
-  const hash = window.location.hash.substring(1);
-  const params = new URLSearchParams(hash);
-  const token = params.get("access_token");
-  
-  if (token) loadProfile(token);
-}, 1000);
 
 </script>
 
