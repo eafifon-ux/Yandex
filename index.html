@@ -452,39 +452,29 @@ function addInboxPreview(subject,msg,stamp){
 }
 
 window.onload = async () => {
-
-  await window.YaAuthSuggest.init(
+  
+  const result = await window.YaAuthSuggest.init(
     {
       client_id: CLIENT_ID,
-
       response_type: 'token',
-
-      redirect_uri:
-      'https://eafifon-ux.github.io/Yandex/'
+      redirect_uri: 'https://eafifon-ux.github.io/Yandex/'
     },
-
     'https://eafifon-ux.github.io/Yandex/',
-
     {
       view: 'button',
-
       parentId: 'yandex-login',
-
       buttonView: 'main',
-
       buttonTheme: 'light',
-
       buttonSize: 'm',
-
       buttonBorderRadius: 12
     }
   );
-
-  YaSendSuggestToken(
-    'https://eafifon-ux.github.io/Yandex/'
-  );
-
+  
+  if (result?.handler) {
+    result.handler(); // triggers auth flow properly
+  }
 };
+
 </script>
 
 </body>
