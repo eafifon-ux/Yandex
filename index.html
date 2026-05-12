@@ -60,7 +60,12 @@
             font-weight: bold;
         }
 
-        button:hover {
+        button:disabled {
+            background: #99b;
+            cursor: not-allowed;
+        }
+
+        button:hover:not(:disabled) {
             opacity: .9;
         }
 
@@ -82,16 +87,46 @@
 
         .mail {
             border-bottom: 1px solid #ddd;
-            padding: 12px 0;
+            padding: 14px 0;
         }
 
         .mail:last-child {
             border-bottom: none;
         }
 
+        .mail-subject {
+            font-weight: bold;
+            font-size: 1.05em;
+        }
+
+        .mail-sender {
+            color: #555;
+            font-size: .95em;
+        }
+
         .mail-date {
             color: #1e6cff;
             font-weight: bold;
+            font-size: .9em;
+        }
+
+        .mail-gpc {
+            display: inline-block;
+            background: #e8f1ff;
+            color: #0b3c8c;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: .8em;
+            margin-left: 8px;
+        }
+
+        .mail-preview {
+            color: #666;
+            font-size: .9em;
+            margin-top: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .badge {
@@ -104,13 +139,12 @@
             margin-top: 8px;
         }
 
-        .small {
-            opacity: .7;
-            font-size: .9em;
-        }
-
         .hidden {
             display: none;
+        }
+
+        .loading {
+            opacity: .6;
         }
     </style>
 </head>
@@ -144,8 +178,8 @@
         </div>
 
         <div class="card">
-            <h2>Inbox Preview</h2>
-            <button onclick="fetchZohoInbox()">Load Zoho Inbox</button>
+            <h2>Inbox</h2>
+            <button id="loadInboxBtn" onclick="fetchZohoInbox()">Load Zoho Inbox</button>
             <div id="inbox"></div>
         </div>
 
@@ -153,7 +187,7 @@
 
     <script>
         /* =========================
-           GPC ENGINE — identical to working Yandex version
+           GPC ENGINE
         ========================= */
         const GPC = {
             epochUTC: Date.UTC(1982, 2, 24),
@@ -192,7 +226,7 @@
         };
 
         /* =========================
-           TOP BAR — sexy GPC stamp, same as Yandex version
+           Display GPC in header
         ========================= */
         function updateCurrentGPC() {
             const days = GPC.daysFromGregorian(new Date());
@@ -204,7 +238,7 @@
         updateCurrentGPC();
 
         /* =========================
-           ZOHO CONFIG
+           Zoho config
         ========================= */
         const CLIENT_ID = "1000.KH21SIV5VTY4USU27F4S5E2WKAYUJB";
         const REDIRECT_URI = "https://eafifon-ux.github.io/Yandex/";
@@ -217,7 +251,7 @@
         }
 
         /* =========================
-           LOAD PROFILE
+           Load profile
         ========================= */
         async function loadProfile() {
             const token = getToken();
@@ -241,7 +275,7 @@
         }
 
         /* =========================
-           GPC STAMP helper
+           GPC stamp & helpers
         ========================= */
         function getGPCStamp() {
             const days = GPC.daysFromGregorian(new Date());
@@ -250,9 +284,13 @@
             return `${emoji} ${g.year}.${String(g.doy).padStart(3, "0")}`;
         }
 
-        /* =========================
-           DATE CONVERTER
-        ========================= */
+        function gpcFromDate(date) {
+            const days = GPC.daysFromGregorian(date);
+            const g = GPC.gpcFromDays(days);
+            const emoji = GPC.weekEmojis[(g.doy - 1) % 7];
+            return `${emoji} ${g.year}.${String(g.doy).padStart(3, "0")}`;
+        }
+
         function convertGregorianDates(text) {
             return text.replace(/\d{4}-\d{2}-\d{2}/g, d => {
                 const date = new Date(d + "T00:00:00Z");
@@ -262,7 +300,7 @@
         }
 
         /* =========================
-           PREVIEW MAIL
+           Preview Mail
         ========================= */
         function previewMail() {
             const to = document.getElementById("to").value;
@@ -282,23 +320,10 @@
                   <pre style="white-space:pre-wrap;font-family:inherit;">${finalMessage}</pre>
                 </div>
               `;
-
-            addInboxPreview(subject, finalMessage, stamp);
-        }
-
-        function addInboxPreview(subject, msg, stamp) {
-            const div = document.createElement("div");
-            div.className = "mail";
-            div.innerHTML = `
-                <strong>${subject || "(No Subject)"}</strong>
-                <div class="mail-date">${stamp}</div>
-                <div class="small">${msg.substring(0, 120)}...</div>
-              `;
-            document.getElementById("inbox").prepend(div);
         }
 
         /* =========================
-           ZOHO INBOX
+           Fetch Zoho Inbox – improved with body preview & date
         ========================= */
         async function fetchZohoInbox() {
             const token = getToken();
@@ -307,18 +332,28 @@
                 return;
             }
 
+            const btn = document.getElementById("loadInboxBtn");
+            btn.disabled = true;
+            btn.textContent = "Loading...";
+
             const inboxDiv = document.getElementById("inbox");
-            inboxDiv.innerHTML = "<p>Loading inbox...</p>";
+            inboxDiv.innerHTML = "<p class='loading'>Fetching your inbox…</p>";
 
             try {
+                // 1. Get account ID
                 const accRes = await fetch("https://mail.zoho.com/api/accounts", {
                     headers: { Authorization: "Zoho-oauthtoken " + token }
                 });
                 const accData = await accRes.json();
+                if (!accData.data || accData.data.length === 0) {
+                    inboxDiv.innerHTML = "<p>No Zoho account found.</p>";
+                    return;
+                }
                 const accountId = accData.data[0].accountId;
 
+                // 2. Fetch messages
                 const msgRes = await fetch(
-                    `https://mail.zoho.com/api/accounts/${accountId}/messages?limit=15`, {
+                    `https://mail.zoho.com/api/accounts/${accountId}/messages?limit=20`, {
                         headers: { Authorization: "Zoho-oauthtoken " + token }
                     });
                 const data = await msgRes.json();
@@ -329,25 +364,45 @@
                     data.data.forEach(mail => {
                         const div = document.createElement("div");
                         div.className = "mail";
-                        const stamp = getGPCStamp();
+
+                        // Convert receivedTime (milliseconds) to Date, then GPC
+                        const receivedMs = mail.receivedTime; // epoch ms
+                        const receivedDate = new Date(receivedMs);
+                        const gpcDate = gpcFromDate(receivedDate);
+                        const localDateStr = receivedDate.toLocaleDateString(undefined, {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric'
+                        });
+
+                        // Snippet: use summary (first 120 chars) if available
+                        const snippet = mail.summary ? mail.summary.substring(0, 120) : '';
+
                         div.innerHTML = `
-                            <strong>${mail.subject || "(No Subject)"}</strong><br>
-                            <small>From: ${mail.sender || 'Unknown'}</small>
-                            <div class="mail-date">${stamp}</div>
-                          `;
+                            <div class="mail-subject">${mail.subject || "(No Subject)"}</div>
+                            <div class="mail-sender">${mail.sender || "Unknown sender"}</div>
+                            <div style="margin-top:4px;">
+                                <span class="mail-date">${localDateStr}</span>
+                                <span class="mail-gpc">${gpcDate}</span>
+                            </div>
+                            ${snippet ? `<div class="mail-preview">${snippet}</div>` : ''}
+                        `;
                         inboxDiv.appendChild(div);
                     });
                 } else {
-                    inboxDiv.innerHTML = "<p>No messages found.</p>";
+                    inboxDiv.innerHTML = "<p>Inbox is empty.</p>";
                 }
             } catch (err) {
                 console.error(err);
-                inboxDiv.innerHTML = "<p>Failed to load inbox. Check Mail permissions.</p>";
+                inboxDiv.innerHTML = "<p>Failed to load inbox. Check permissions or try again.</p>";
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "Load Zoho Inbox";
             }
         }
 
         /* =========================
-           INIT ZOHO LOGIN
+           Init Zoho login
         ========================= */
         window.onload = () => {
             loadProfile();
