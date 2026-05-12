@@ -1,6 +1,6 @@
 <!DOCTYPE html>  <html lang="en">  
 <head>  
-  <script src="https://yastatic.net/s3/passport-sdk/autofill/v1/sdk-suggest-with-polyfills-latest.js"></script>  <meta charset="UTF-8">  
+  <script src="https://yastatic.net/s3/passport-sdk/autofill/v1/sdk-suggest-with-polyfills-latest.js"></script>  <script src="https://yastatic.net/s3/passport-sdk/autofill/v1/sdk-suggest-token-with-polyfills-latest.js"></script>  <meta charset="UTF-8">  
 <meta name="viewport" content="width=device-width, initial-scale=1.0">  
 <title>GPC Mail Layer</title>  <style>  
 body{  
@@ -243,7 +243,7 @@ Replace below with your app id
 */  
   
 const CLIENT_ID =  
-"e42e122f85384a2e802eef82503119e2";  
+"c90a511e2f154e96ae47e58c5eb9f59c";  
   
   
   
@@ -252,35 +252,64 @@ const CLIENT_ID =
    LOAD PROFILE  
 ========================= */  
   
-async function loadProfile(token) {  
-    
-  if (!token) return;  
-    
-  try {  
-      
-    const res = await fetch("https://login.yandex.ru/info", {  
-      headers: {  
-        Authorization: "OAuth " + token  
-      }  
-    });  
-      
+async function loadProfile(){  
+  
+  const token = getToken();  
+  
+  if(!token) return;  
+  
+  try{  
+  
+    const res =  
+      await fetch(  
+        "https://login.yandex.ru/info",  
+        {  
+          headers:{  
+            Authorization:  
+              "OAuth " + token  
+          }  
+        }  
+      );  
+  
     const data = await res.json();  
-      
-    document.getElementById("profile").classList.remove("hidden");  
-      
-    document.getElementById("userEmail").textContent =  
+  
+    document  
+      .getElementById("profile")  
+      .classList.remove("hidden");  
+  
+    document  
+      .getElementById("userEmail")  
+      .textContent =  
       data.default_email || "Yandex User";  
-      
-    const days = GPC.daysFromGregorian(new Date());  
-    const g = GPC.gpcFromDays(days);  
-      
-    document.getElementById("userGPC").textContent =  
-      `Today in GPC: ${g.year}.${String(g.doy).padStart(3, "0")}`;  
-      
-  } catch (err) {  
-    console.error("Profile load failed:", err);  
+  
+    const days =  
+      GPC.daysFromGregorian(new Date());  
+  
+    const g =  
+      GPC.gpcFromDays(days);  
+  
+    document  
+      .getElementById("userGPC")  
+      .textContent =  
+      `Today in GPC: ${g.year}.${String(g.doy).padStart(3,"0")}`;  
+  
+  }catch(err){  
+  
+    console.error(err);  
   }  
 }  
+function getToken(){  
+  
+  const hash =  
+    window.location.hash.substring(1);  
+  
+  const params =  
+    new URLSearchParams(hash);  
+  
+  return params.get("access_token");  
+}  
+  
+loadProfile();  
   
 /* =========================  
    GPC STAMP  
@@ -415,19 +444,9 @@ buttonBorderRadius: 12
 );
 
 if (result?.handler) {
-result.handler().then(({ access_token }) => {
-loadProfile(access_token);
-});
+result.handler(); // triggers auth flow properly
 }
 };
-
-setTimeout(() => {
-const hash = window.location.hash.substring(1);
-const params = new URLSearchParams(hash);
-const token = params.get("access_token");
-
-if (token) loadProfile(token);
-}, 1000);
 
 </script>  </body>  
 </html>  
