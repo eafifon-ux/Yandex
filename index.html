@@ -323,7 +323,7 @@
         }
 
         /* =========================
-           Fetch Zoho Inbox – improved with body preview & date
+           Fetch Zoho Inbox – now fetches only Inbox folder
         ========================= */
         async function fetchZohoInbox() {
             const token = getToken();
@@ -351,9 +351,22 @@
                 }
                 const accountId = accData.data[0].accountId;
 
-                // 2. Fetch messages
+                // 2. Get folders to find Inbox folderId
+                const foldersRes = await fetch(
+                    `https://mail.zoho.com/api/accounts/${accountId}/folders`, {
+                        headers: { Authorization: "Zoho-oauthtoken " + token }
+                    });
+                const foldersData = await foldersRes.json();
+                const inboxFolder = foldersData.data.find(f => f.folderName === "Inbox");
+                if (!inboxFolder) {
+                    inboxDiv.innerHTML = "<p>Inbox folder not found.</p>";
+                    return;
+                }
+                const inboxFolderId = inboxFolder.folderId;
+
+                // 3. Fetch messages from Inbox folder only
                 const msgRes = await fetch(
-                    `https://mail.zoho.com/api/accounts/${accountId}/messages?limit=20`, {
+                    `https://mail.zoho.com/api/accounts/${accountId}/messages?folderId=${inboxFolderId}&limit=20`, {
                         headers: { Authorization: "Zoho-oauthtoken " + token }
                     });
                 const data = await msgRes.json();
@@ -366,7 +379,7 @@
                         div.className = "mail";
 
                         // Convert receivedTime (milliseconds) to Date, then GPC
-                        const receivedMs = mail.receivedTime; // epoch ms
+                        const receivedMs = mail.receivedTime;
                         const receivedDate = new Date(receivedMs);
                         const gpcDate = gpcFromDate(receivedDate);
                         const localDateStr = receivedDate.toLocaleDateString(undefined, {
@@ -375,7 +388,7 @@
                             year: 'numeric'
                         });
 
-                        // Snippet: use summary (first 120 chars) if available
+                        // Snippet: use summary (first 120 chars)
                         const snippet = mail.summary ? mail.summary.substring(0, 120) : '';
 
                         div.innerHTML = `
