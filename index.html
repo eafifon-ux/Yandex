@@ -373,80 +373,75 @@
         /* =========================
            Fetch inbox messages
         ========================= */
-        async function fetchZohoInbox() {
-            const token = getToken();
-            if (!token) {
-                document.getElementById("inbox").innerHTML = 
-                    `<div class="error-message">⚠️ No token found. Please <button onclick="window.location.reload()">login first</button>.</div>`;
-                return;
-            }
-            const inboxDiv = document.getElementById("inbox");
-            inboxDiv.innerHTML = "Loading inbox...";
+       async function fetchZohoInbox() {
+    const token = getToken();
+    if (!token) {
+        document.getElementById("inbox").innerHTML = 
+            `<div class="error-message">⚠️ No token found. <button onclick="window.location.reload()">Login first</button>.</div>`;
+        return;
+    }
+    const inboxDiv = document.getElementById("inbox");
+    inboxDiv.innerHTML = "Loading inbox...";
 
-            // 1. Get accountId
-            const accountId = await getAccountId();
-            if (!accountId) {
-                inboxDiv.innerHTML = `<div class="error-message">Could not retrieve account ID. Try re-login.</div>`;
-                return;
-            }
+    const accountId = await getAccountId();
+    if (!accountId) {
+        inboxDiv.innerHTML = `<div class="error-message">Could not retrieve account.</div>`;
+        return;
+    }
 
-            // 2. Fetch messages (limit 20)
-            try {
-                const proxyUrl = "https://corsproxy.io/?";
-                const targetUrl = `https://mail.zoho.in/api/accounts/${accountId}/messages?limit=20`;
-                const res = await fetch(proxyUrl + encodeURIComponent(targetUrl), {
-                    headers: { Authorization: "Zoho-oauthtoken " + token }
-                });
+    try {
+        const proxyUrl = "https://corsproxy.io/?";
+        // Correct Zoho Mail API endpoint for listing messages:
+        const targetUrl = `https://mail.zoho.in/api/accounts/${accountId}/messages/view?limit=20`;
+        const res = await fetch(proxyUrl + encodeURIComponent(targetUrl), {
+            headers: { Authorization: "Zoho-oauthtoken " + token }
+        });
 
-                if (res.status === 401) {
-                    const errData = await res.json();
-                    inboxDiv.innerHTML = `
-                        <div class="error-message">
-                            ❌ Token invalid or expired: ${errData.status?.description || "Unauthorized"}<br>
-                            <button onclick="window.location.reload()">🔄 Re-login</button>
-                        </div>
-                    `;
-                    return;
-                }
-                if (!res.ok) {
-                    const errText = await res.text();
-                    inboxDiv.innerHTML = `<p>HTTP error ${res.status}: ${errText}</p>`;
-                    return;
-                }
-
-                const data = await res.json();
-                if (!data.data || data.data.length === 0) {
-                    inboxDiv.innerHTML = "<p>No messages found.</p>";
-                    return;
-                }
-
-                // 3. Render messages
-                let html = `<p>Showing ${data.data.length} messages:</p>`;
-                data.data.forEach(msg => {
-                    const subject = msg.subject || "(No subject)";
-                    const from = msg.fromAddress || msg.sender || "Unknown";
-                    const dateReceived = msg.date ? new Date(msg.date) : new Date();
-                    const gpcString = gpcFromDate(dateReceived);
-                    const snippet = msg.summary || msg.snippet || "";
-                    const emoji = GPC.weekEmojis[(GPC.daysFromGregorian(dateReceived) % 7 + 7) % 7]; // week emoji
-
-                    html += `
-                        <div class="mail">
-                            <div class="mail-subject">${subject}</div>
-                            <div class="mail-sender">${from}</div>
-                            <div class="mail-date">
-                                ${dateReceived.toLocaleDateString()} 
-                                <span class="mail-gpc">${gpcString}</span>
-                            </div>
-                            <div class="mail-preview">${snippet}</div>
-                        </div>
-                    `;
-                });
-                inboxDiv.innerHTML = html;
-            } catch (e) {
-                inboxDiv.innerHTML = `<p>Network/JS error: ${e.message}</p>`;
-            }
+        if (res.status === 401) {
+            const errData = await res.json();
+            inboxDiv.innerHTML = `
+                <div class="error-message">
+                    ❌ Token expired: ${errData.status?.description || "Unauthorized"}<br>
+                    <button onclick="window.location.reload()">🔄 Re-login</button>
+                </div>`;
+            return;
         }
+        if (!res.ok) {
+            const errText = await res.text();
+            inboxDiv.innerHTML = `<p>HTTP error ${res.status}: ${errText}</p>`;
+            return;
+        }
+
+        const data = await res.json();
+        if (!data.data || data.data.length === 0) {
+            inboxDiv.innerHTML = "<p>No messages found.</p>";
+            return;
+        }
+
+        let html = `<p>Showing ${data.data.length} messages:</p>`;
+        data.data.forEach(msg => {
+            const subject = msg.subject || "(No subject)";
+            const from = msg.fromAddress || msg.sender || "Unknown";
+            const dateReceived = msg.date ? new Date(msg.date) : new Date();
+            const gpcString = gpcFromDate(dateReceived);
+            const snippet = msg.summary || msg.snippet || "";
+            html += `
+                <div class="mail">
+                    <div class="mail-subject">${escapeHtml(subject)}</div>
+                    <div class="mail-sender">${escapeHtml(from)}</div>
+                    <div class="mail-date">
+                        ${dateReceived.toLocaleDateString()} 
+                        <span class="mail-gpc">${gpcString}</span>
+                    </div>
+                    <div class="mail-preview">${escapeHtml(snippet)}</div>
+                </div>`;
+        });
+        inboxDiv.innerHTML = html;
+    } catch (e) {
+        inboxDiv.innerHTML = `<p>Network/JS error: ${e.message}</p>`;
+    }
+}
+
 
         /* =========================
            Init Zoho login
