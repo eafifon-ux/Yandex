@@ -876,7 +876,7 @@ async function fetchFullMessage(messageId, folderId) {
   }
 
   const proxy = "https://corsproxy.io/?";
-  let lastError = '';
+  let errors = [];
 
   // Try both endpoints: generic first, then folder-scoped
   const urls = [
@@ -894,19 +894,28 @@ async function fetchFullMessage(messageId, folderId) {
         renderMessage(data.data);
         return;
       } else {
-        lastError = `HTTP ${res.status}`;
-        // Show the URL (token masked for security)
+        // Mask token in URL for display
         const maskedUrl = url.replace(token, 'TOKEN');
-        document.getElementById('modalBody').innerHTML = `<div class="error-message">Failed to load message (${lastError})<br><small>URL: ${maskedUrl}</small></div>`;
+        errors.push(`URL: ${maskedUrl} → HTTP ${res.status}`);
       }
     } catch (e) {
-      lastError = e.message;
+      const maskedUrl = url.replace(token, 'TOKEN');
+      errors.push(`URL: ${maskedUrl} → ${e.message}`);
     }
   }
 
-  // If both failed, show final error
-  document.getElementById('modalBody').innerHTML = `<div class="error-message">Failed to load message after all attempts.<br>Last error: ${lastError}</div>`;
+  // Show all errors with account info
+  document.getElementById('modalBody').innerHTML = `
+    <div class="error-message">
+      <strong>Failed to load message</strong><br>
+      Account ID: ${accountId}<br>
+      Message ID: ${messageId}<br>
+      Folder ID: ${folderId || 'none'}<br><br>
+      <strong>Attempts:</strong><br>
+      ${errors.join('<br>')}
+    </div>`;
 }
+
 
 
 // Helper to render the message content in modal
