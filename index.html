@@ -878,7 +878,6 @@ async function fetchFullMessage(messageId, folderId) {
   const proxy = "https://corsproxy.io/?";
   let errors = [];
 
-  // Try both endpoints: generic first, then folder-scoped
   const urls = [
     `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}`,
     folderId ? `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}` : null
@@ -894,9 +893,11 @@ async function fetchFullMessage(messageId, folderId) {
         renderMessage(data.data);
         return;
       } else {
-        // Mask token in URL for display
+        // Try to get the response body for error detail
+        let errorBody = '';
+        try { errorBody = await res.text(); } catch(e) {}
         const maskedUrl = url.replace(token, 'TOKEN');
-        errors.push(`URL: ${maskedUrl} → HTTP ${res.status}`);
+        errors.push(`URL: ${maskedUrl} → HTTP ${res.status} | Body: ${errorBody.substring(0, 300)}`);
       }
     } catch (e) {
       const maskedUrl = url.replace(token, 'TOKEN');
@@ -904,7 +905,6 @@ async function fetchFullMessage(messageId, folderId) {
     }
   }
 
-  // Show all errors with account info
   document.getElementById('modalBody').innerHTML = `
     <div class="error-message">
       <strong>Failed to load message</strong><br>
@@ -915,6 +915,7 @@ async function fetchFullMessage(messageId, folderId) {
       ${errors.join('<br>')}
     </div>`;
 }
+
 
 
 
