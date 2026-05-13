@@ -154,6 +154,14 @@
             overflow-x: auto;
             font-size: .9em;
         }
+
+        .error-message {
+            color: #b00;
+            background: #ffe0e0;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
     </style>
 </head>
 <body>
@@ -266,14 +274,18 @@
             if (!token) return;
 
             try {
-                const res = await fetch(`${ACCOUNTS_URL}/oauth/user/info`, {
+                const proxyUrl = "https://corsproxy.io/?";
+                const targetUrl = `${ACCOUNTS_URL}/oauth/user/info`;
+                const res = await fetch(proxyUrl + encodeURIComponent(targetUrl), {
                     headers: { Authorization: "Zoho-oauthtoken " + token }
                 });
+                if (!res.ok) {
+                    console.warn("Profile fetch failed – token may be invalid");
+                    return;
+                }
                 const data = await res.json();
-
                 document.getElementById("profile").classList.remove("hidden");
                 document.getElementById("userEmail").textContent = data.email || "Zoho User";
-
                 const g = GPC.gpcFromDays(GPC.daysFromGregorian(new Date()));
                 document.getElementById("userGPC").textContent =
                     `Today in GPC: ${g.year}.${String(g.doy).padStart(3, "0")}`;
@@ -331,28 +343,45 @@
         }
 
         /* =========================
-           Fixed fetchZohoInbox – uses CORS proxy
+           Fixed fetchZohoInbox – uses CORS proxy + 401 handling
         ========================= */
         async function fetchZohoInbox() {
             const token = getToken();
-            if (!token) { alert("No token found"); return; }
+            if (!token) {
+                document.getElementById("inbox").innerHTML = 
+                    `<div class="error-message">⚠️ No token found. Please <button onclick="window.location.reload()">login first</button>.</div>`;
+                return;
+            }
             const inboxDiv = document.getElementById("inbox");
-            inboxDiv.innerHTML = "Token (first 20): " + token.substring(0, 20) + "<br>Testing account API...";
+            inboxDiv.innerHTML = "Token (first 20): " + token.substring(0, 20) + "<br>Loading...";
             try {
                 const proxyUrl = "https://corsproxy.io/?";
                 const targetUrl = "https://mail.zoho.com/api/accounts";
                 const res = await fetch(proxyUrl + encodeURIComponent(targetUrl), {
                     headers: { Authorization: "Zoho-oauthtoken " + token }
                 });
+
+                if (res.status === 401) {
+                    const errData = await res.json();
+                    inboxDiv.innerHTML = `
+                        <div class="error-message">
+                            ❌ Token invalid or expired: ${errData.status?.description || "Unauthorized"}<br>
+                            <button onclick="window.location.reload()">🔄 Re-login with Zoho</button>
+                        </div>
+                    `;
+                    return;
+                }
+
                 if (!res.ok) {
                     const errText = await res.text();
                     inboxDiv.innerHTML = `<p>HTTP error ${res.status}: ${errText}</p>`;
                     return;
                 }
+
                 const data = await res.json();
                 inboxDiv.innerHTML = "<pre>" + JSON.stringify(data, null, 2) + "</pre>";
             } catch (e) {
-                inboxDiv.innerHTML = "<p>Network/JS error: " + e.message + "</p>";
+                inboxDiv.innerHTML = `<p>Network/JS error: ${e.message}</p>`;
             }
         }
 
@@ -379,4 +408,3 @@
 
 </body>
 </html>
-
