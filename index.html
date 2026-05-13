@@ -737,8 +737,12 @@ function renderInbox(messages) {
     const greg = formatGregorian(date);
     const gpc = formatGPC(GPC.gpcFromDays(GPC.daysFromGregorian(date)));
     const snippet = msg.summary || msg.snippet || "";
+    // Store both messageId and folderId
     html += `
-      <div class="mail" data-message-id="${escapeHtml(msg.messageId || '')}" style="cursor:pointer;">
+      <div class="mail" 
+           data-message-id="${escapeHtml(msg.messageId || '')}" 
+           data-folder-id="${escapeHtml(msg.folderId || '')}"
+           style="cursor:pointer;">
         <div class="mail-subject">${escapeHtml(sub)}</div>
         <div class="mail-sender">${escapeHtml(from)}</div>
         <div class="mail-meta">
@@ -750,6 +754,7 @@ function renderInbox(messages) {
   });
   inboxDiv.innerHTML = html;
 }
+
 
 function formatGregorian(d){const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${dd}`;}
 function escapeHtml(t){const d=document.createElement('div'); d.textContent=t; return d.innerHTML;}
@@ -844,7 +849,7 @@ async function loadProfile(){
 /* ===============================
    OPEN / READ EMAIL MODAL
 =============================== */
-function openEmailModal(messageId) {
+function openEmailModal(messageId, folderId) {
   const modal = document.getElementById('emailModal');
   modal.classList.add('active');
   document.getElementById('modalSubject').textContent = 'Loading…';
@@ -852,56 +857,69 @@ function openEmailModal(messageId) {
   document.getElementById('modalTo').textContent = '';
   document.getElementById('modalDate').textContent = '';
   document.getElementById('modalBody').innerHTML = '<div class="loading-text">Loading message…</div>';
-  fetchFullMessage(messageId);
+  fetchFullMessage(messageId, folderId);
 }
 
 function closeEmailModal() {
   document.getElementById('emailModal').classList.remove('active');
 }
 
-async function fetchFullMessage(messageId) {
+async function fetchFullMessage(messageId, folderId) {
   const token = getToken();
   if (!token) return;
   const accountId = await getAccountId();
   if (!accountId) return;
   try {
     const proxy = "https://corsproxy.io/?";
-    const url = `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}`;
+    // Use folder-scoped endpoint (more reliable)
+    const url = `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}`;
     const res = await fetch(proxy + encodeURIComponent(url), {
       headers: { Authorization: "Zoho-oauthtoken " + token }
     });
     if (!res.ok) {
-      document.getElementById('modalBody').innerHTML = `<div class="error-message">Failed to load message (${res.status})</div>`;
-      return;
-    }
-    const data = await res.json();
-    const msg = data.data;
-    if (!msg) {
-      document.getElementById('modalBody').innerHTML = `<div class="error-message">Message not found.</div>`;
-      return;
-    }
-    // Populate header
-    document.getElementById('modalSubject').textContent = msg.subject || '(No subject)';
-    document.getElementById('modalFrom').textContent = 'From: ' + (msg.fromAddress || 'Unknown');
-    document.getElementById('modalTo').textContent = 'To: ' + (msg.toAddress || 'Unknown');
-    const date = new Date(msg.date || msg.receivedDate || Date.now());
-    document.getElementById('modalDate').textContent = 'Date: ' + date.toLocaleString();
-
-    // Render body: prefer HTML, fallback to plain text
-    let bodyHtml = '';
-    if (msg.htmlContent) {
-      bodyHtml = msg.htmlContent; // sanitised HTML from Zoho
-    } else if (msg.content) {
-      // wrap plain text in <pre> for readability
-      bodyHtml = `<pre style="white-space:pre-wrap;font-family:inherit;margin:0;background:none;font-size:0.95em;">${escapeHtml(msg.content)}</pre>`;
+      // Fallback: try without folder (some accounts still work this way)
+      const fallbackUrl = `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}`;
+      const res2 = await fetch(proxy + encodeURIComponent(fallbackUrl), {
+        headers: { Authorization: "Zoho-oauthtoken " + token }
+      });
+      if (!res2.ok) {
+        document.getElementById('modalBody').innerHTML = `<div class="error-message">Failed to load message (HTTP ${res2.status})</div>`;
+        return;
+      }
+      const data = await res2.json();
+      renderMessage(data.data);
     } else {
-      bodyHtml = '<p><em>No content</em></p>';
+      const data = await res.json();
+      renderMessage(data.data);
     }
-    document.getElementById('modalBody').innerHTML = bodyHtml;
   } catch (e) {
     document.getElementById('modalBody').innerHTML = `<div class="error-message">Network error: ${e.message}</div>`;
   }
 }
+
+// Helper to render the message content in modal
+function renderMessage(msg) {
+  if (!msg) {
+    document.getElementById('modalBody').innerHTML = `<div class="error-message">Message not found.</div>`;
+    return;
+  }
+  document.getElementById('modalSubject').textContent = msg.subject || '(No subject)';
+  document.getElementById('modalFrom').textContent = 'From: ' + (msg.fromAddress || 'Unknown');
+  document.getElementById('modalTo').textContent = 'To: ' + (msg.toAddress || 'Unknown');
+  const date = new Date(msg.date || msg.receivedDate || Date.now());
+  document.getElementById('modalDate').textContent = 'Date: ' + date.toLocaleString();
+
+  let bodyHtml = '';
+  if (msg.htmlContent) {
+    bodyHtml = msg.htmlContent;
+  } else if (msg.content) {
+    bodyHtml = `<pre style="white-space:pre-wrap;font-family:inherit;margin:0;background:none;font-size:0.95em;">${escapeHtml(msg.content)}</pre>`;
+  } else {
+    bodyHtml = '<p><em>No content</em></p>';
+  }
+  document.getElementById('modalBody').innerHTML = bodyHtml;
+}
+
 
 /* ===============================
    TOGGLE HANDLERS
@@ -1076,15 +1094,17 @@ document.addEventListener('DOMContentLoaded',()=>{
     td.addEventListener('click',()=>setDOYMonth(Number(td.dataset.month)));
   });
 
-  // Inbox click delegation for opening emails
+  // Inbox click delegation – now passes folderId
   document.getElementById('inbox').addEventListener('click', function(e) {
     const mailDiv = e.target.closest('.mail');
     if (!mailDiv) return;
     const messageId = mailDiv.dataset.messageId;
+    const folderId = mailDiv.dataset.folderId;
     if (messageId) {
-      openEmailModal(messageId);
+      openEmailModal(messageId, folderId);
     }
   });
+
 
   // Modal close events
   document.getElementById('modalCloseBtn').addEventListener('click', closeEmailModal);
