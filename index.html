@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GPC Mail</title>
     <style>
+        /* ... your existing CSS (unchanged) ... */
         body {
             margin: 0;
             font-family: Georgia, serif;
@@ -194,8 +195,8 @@
         </div>
 
         <div class="card">
-            <h2>Inbox (Debug Mode)</h2>
-            <button id="loadInboxBtn" onclick="fetchZohoInbox()">Load Zoho Inbox</button>
+            <h2>Inbox</h2>
+            <button id="loadInboxBtn" onclick="fetchZohoInbox()">Load Inbox</button>
             <div id="inbox"></div>
         </div>
 
@@ -203,7 +204,7 @@
 
     <script>
         /* =========================
-           GPC ENGINE
+           GPC ENGINE (unchanged)
         ========================= */
         const GPC = {
             epochUTC: Date.UTC(1982, 2, 24),
@@ -254,9 +255,9 @@
         updateCurrentGPC();
 
         /* =========================
-           Zoho config
+           Zoho config (now using .in and your new client ID)
         ========================= */
-        const CLIENT_ID = "1000.KH21SIV5VTY4USU27F4S5E2WKAYUJB";
+        const CLIENT_ID = "1000.O0HMZM4A38KI7HT9GCOK400QJF9ZGO";
         const REDIRECT_URI = "https://eafifon-ux.github.io/Yandex/";
         const ACCOUNTS_URL = "https://accounts.zoho.in";
 
@@ -343,7 +344,34 @@
         }
 
         /* =========================
-           Fixed fetchZohoInbox – uses CORS proxy + 401 handling
+           Get accountId once (cached)
+        ========================= */
+        let cachedAccountId = null;
+
+        async function getAccountId() {
+            if (cachedAccountId) return cachedAccountId;
+            const token = getToken();
+            if (!token) return null;
+            try {
+                const proxyUrl = "https://corsproxy.io/?";
+                const targetUrl = "https://mail.zoho.in/api/accounts";
+                const res = await fetch(proxyUrl + encodeURIComponent(targetUrl), {
+                    headers: { Authorization: "Zoho-oauthtoken " + token }
+                });
+                if (!res.ok) return null;
+                const data = await res.json();
+                if (data.data && data.data.length > 0) {
+                    cachedAccountId = data.data[0].accountId;
+                    return cachedAccountId;
+                }
+                return null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        /* =========================
+           Fetch inbox messages
         ========================= */
         async function fetchZohoInbox() {
             const token = getToken();
@@ -353,10 +381,19 @@
                 return;
             }
             const inboxDiv = document.getElementById("inbox");
-            inboxDiv.innerHTML = "Token (first 20): " + token.substring(0, 20) + "<br>Loading...";
+            inboxDiv.innerHTML = "Loading inbox...";
+
+            // 1. Get accountId
+            const accountId = await getAccountId();
+            if (!accountId) {
+                inboxDiv.innerHTML = `<div class="error-message">Could not retrieve account ID. Try re-login.</div>`;
+                return;
+            }
+
+            // 2. Fetch messages (limit 20)
             try {
                 const proxyUrl = "https://corsproxy.io/?";
-                const targetUrl = "https://mail.zoho.in/api/accounts";
+                const targetUrl = `https://mail.zoho.in/api/accounts/${accountId}/messages?limit=20`;
                 const res = await fetch(proxyUrl + encodeURIComponent(targetUrl), {
                     headers: { Authorization: "Zoho-oauthtoken " + token }
                 });
@@ -366,12 +403,11 @@
                     inboxDiv.innerHTML = `
                         <div class="error-message">
                             ❌ Token invalid or expired: ${errData.status?.description || "Unauthorized"}<br>
-                            <button onclick="window.location.reload()">🔄 Re-login with Zoho</button>
+                            <button onclick="window.location.reload()">🔄 Re-login</button>
                         </div>
                     `;
                     return;
                 }
-
                 if (!res.ok) {
                     const errText = await res.text();
                     inboxDiv.innerHTML = `<p>HTTP error ${res.status}: ${errText}</p>`;
@@ -379,7 +415,34 @@
                 }
 
                 const data = await res.json();
-                inboxDiv.innerHTML = "<pre>" + JSON.stringify(data, null, 2) + "</pre>";
+                if (!data.data || data.data.length === 0) {
+                    inboxDiv.innerHTML = "<p>No messages found.</p>";
+                    return;
+                }
+
+                // 3. Render messages
+                let html = `<p>Showing ${data.data.length} messages:</p>`;
+                data.data.forEach(msg => {
+                    const subject = msg.subject || "(No subject)";
+                    const from = msg.fromAddress || msg.sender || "Unknown";
+                    const dateReceived = msg.date ? new Date(msg.date) : new Date();
+                    const gpcString = gpcFromDate(dateReceived);
+                    const snippet = msg.summary || msg.snippet || "";
+                    const emoji = GPC.weekEmojis[(GPC.daysFromGregorian(dateReceived) % 7 + 7) % 7]; // week emoji
+
+                    html += `
+                        <div class="mail">
+                            <div class="mail-subject">${subject}</div>
+                            <div class="mail-sender">${from}</div>
+                            <div class="mail-date">
+                                ${dateReceived.toLocaleDateString()} 
+                                <span class="mail-gpc">${gpcString}</span>
+                            </div>
+                            <div class="mail-preview">${snippet}</div>
+                        </div>
+                    `;
+                });
+                inboxDiv.innerHTML = html;
             } catch (e) {
                 inboxDiv.innerHTML = `<p>Network/JS error: ${e.message}</p>`;
             }
