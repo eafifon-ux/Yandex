@@ -342,8 +342,29 @@ const GPC = {
 };
 GPC.initHeptads();
 
+// ----- toggle state -----
+let doyActive = true;    // default on
+let dosActive = false;
+let domActive = false;
+let heptadActive = false;
+
+// Derive mode for display formatting
+function getMode() {
+  if (doyActive) return 'DOY';
+  if (dosActive) return 'DOS';
+  if (domActive) return 'DOM';
+  return '';
+}
+
+// For formatGPC (heptad flag)
 let heptad = false;
-let mode = "DOY";
+let mode = 'DOY';
+
+function syncModeAndHeptad() {
+  mode = getMode();
+  heptad = heptadActive;
+}
+
 let currentDayFilter = null;
 let currentDOMFilter = null;
 let currentSeason = null;
@@ -374,17 +395,25 @@ function formatGPC(gpcDate) {
   const h=GPC.heptads[doy]||{suit:0x2663,week:1};
   const suit=String.fromCodePoint(h.suit);
   let core="";
-  if(heptad) core=String(doy).padStart(3,"0");
-  else if(mode==="DOY") core=String(doy).padStart(3,"0");
+  // compute core based on the active mode (DOY/DOS/DOM)
+  if(mode==="DOY") core=String(doy).padStart(3,"0");
   else if(mode==="DOS") {
     const s=Math.floor((doy-1)/91)+1;
     const ds=((doy-1)%91)+1;
     core=`Q${s}-${String(ds).padStart(2,"0")}`;
-  } else {
+  } else if(mode==="DOM") {
     const md=getGPCMonthDay(doy);
     core=`${String(md.month).padStart(2,"0")}.${String(md.day).padStart(2,"0")}`;
+  } else {
+    // fallback (should not happen)
+    core=String(doy).padStart(3,"0");
   }
-  return heptad ? `${emoji} ${core} ${suit}${h.week}` : `${emoji} ${year}.${core}`;
+  if(heptad) {
+    // Heptad mode: no year, show core + suit+week
+    return `${emoji} ${core} ${suit}${h.week}`;
+  } else {
+    return `${emoji} ${year}.${core}`;
+  }
 }
 
 /* ===============================
@@ -392,12 +421,8 @@ function formatGPC(gpcDate) {
 =============================== */
 function encodeFilterState() {
   const state = {
-    mode,
-    heptad,
-    currentDayFilter,
-    currentDOMFilter,
-    currentSeason,
-    currentDOYMonth
+    doyActive, dosActive, domActive, heptadActive,
+    currentDayFilter, currentDOMFilter, currentSeason, currentDOYMonth
   };
   const json = JSON.stringify(state);
   return btoa(json).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -417,19 +442,22 @@ function restoreFilterFromState() {
   if (!stateParam) return false;
   const state = decodeFilterState(stateParam);
   if (!state) return false;
-  mode = state.mode || 'DOY';
-  heptad = state.heptad || false;
+  doyActive = state.doyActive ?? true;
+  dosActive = state.dosActive ?? false;
+  domActive = state.domActive ?? false;
+  heptadActive = state.heptadActive ?? false;
   currentDayFilter = state.currentDayFilter ?? null;
   currentDOMFilter = state.currentDOMFilter ?? null;
   currentSeason = state.currentSeason ?? null;
   currentDOYMonth = state.currentDOYMonth ?? null;
+  syncModeAndHeptad();
   const newUrl = window.location.origin + window.location.pathname + window.location.hash;
   window.history.replaceState({}, '', newUrl);
   return true;
 }
 
 /* ===============================
-   GLOBAL LOGIN FUNCTION (fixed)
+   GLOBAL LOGIN FUNCTION
 =============================== */
 const CLIENT_ID="1000.KH21SIV5VTY4USU27F4S5E2WKAYUJB";
 const REDIRECT_URI="https://eafifon-ux.github.io/Yandex/";
@@ -463,10 +491,10 @@ function hideDOYFilter(){ document.getElementById("doy-filter-container").style.
 
 function updateAllFilters(){
   hideWeekFilter(); hideDOMFilter(); hideDOSFilter(); hideDOYFilter();
-  if(heptad) showWeekFilter();
-  if(mode==="DOM") showDOMFilter();
-  if(mode==="DOS") showDOSFilter();
-  if(mode==="DOY") showDOYFilter();
+  if(heptadActive) showWeekFilter();
+  if(domActive) showDOMFilter();
+  if(dosActive) showDOSFilter();
+  if(doyActive) showDOYFilter();
 }
 
 function generateDOMCalendar(){
@@ -615,11 +643,18 @@ function filterByDOYMonth(messages, month) {
 }
 
 function applyFilters(messages) {
-  let filtered=messages;
-  if(mode==="DOY" && currentDOYMonth!==null) filtered=filterByDOYMonth(filtered, currentDOYMonth);
-  else if(mode==="DOS" && currentSeason!==null) filtered=filterBySeason(filtered, currentSeason);
-  else if(mode==="DOM" && currentDOMFilter!==null) filtered=filterByDOM(filtered, currentDOMFilter);
-  if(heptad && currentDayFilter!==null) filtered=filterByDay(filtered, currentDayFilter);
+  let filtered = messages;
+  if (doyActive && currentDOYMonth !== null) {
+    filtered = filterByDOYMonth(filtered, currentDOYMonth);
+  } else if (dosActive && currentSeason !== null) {
+    filtered = filterBySeason(filtered, currentSeason);
+  }
+  if (domActive && currentDOMFilter !== null) {
+    filtered = filterByDOM(filtered, currentDOMFilter);
+  }
+  if (heptadActive && currentDayFilter !== null) {
+    filtered = filterByDay(filtered, currentDayFilter);
+  }
   return filtered;
 }
 
@@ -742,63 +777,155 @@ async function loadProfile(){
 }
 
 /* ===============================
+   TOGGLE HANDLERS
+=============================== */
+function toggleDOY() {
+  if (doyActive) {
+    doyActive = false;
+    currentDOYMonth = null;
+    clearDOYFilter();
+  } else {
+    doyActive = true;
+    if (dosActive) {
+      dosActive = false;
+      currentSeason = null;
+      clearDOSFilter();
+    }
+    if (!currentDOYMonth) {
+      const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date()));
+      setDOYMonth(getGPCMonthFromDoy(todayGPC.doy));
+    }
+  }
+  syncModeAndHeptad();
+  updateAllFilters();
+  updateTopBar();
+  updateModeButtons();
+  fetchZohoInbox();
+}
+
+function toggleDOS() {
+  if (dosActive) {
+    dosActive = false;
+    currentSeason = null;
+    clearDOSFilter();
+  } else {
+    dosActive = true;
+    if (doyActive) {
+      doyActive = false;
+      currentDOYMonth = null;
+      clearDOYFilter();
+    }
+    if (!currentSeason) {
+      const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date()));
+      const s = Math.floor((todayGPC.doy-1)/91)+1;
+      setSeason(s);
+    }
+  }
+  syncModeAndHeptad();
+  updateAllFilters();
+  updateTopBar();
+  updateModeButtons();
+  fetchZohoInbox();
+}
+
+function toggleDOM() {
+  if (domActive) {
+    domActive = false;
+    currentDOMFilter = null;
+    clearDOMFilter();
+  } else {
+    domActive = true;
+    if (heptadActive) {
+      heptadActive = false;
+      currentDayFilter = null;
+      clearDayFilter();
+    }
+    if (!currentDOMFilter) {
+      const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date()));
+      const md = getGPCMonthDay(todayGPC.doy);
+      setDOMFilter(md.day);
+    }
+  }
+  syncModeAndHeptad();
+  updateAllFilters();
+  updateTopBar();
+  updateModeButtons();
+  fetchZohoInbox();
+}
+
+function toggleHeptad() {
+  if (heptadActive) {
+    heptadActive = false;
+    currentDayFilter = null;
+    clearDayFilter();
+  } else {
+    heptadActive = true;
+    if (domActive) {
+      domActive = false;
+      currentDOMFilter = null;
+      clearDOMFilter();
+    }
+    if (!currentDayFilter) {
+      const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date()));
+      const dayIdx = GPC.getDayOfWeekIndex(todayGPC.doy);
+      setDayFilter(dayIdx);
+    }
+  }
+  syncModeAndHeptad();
+  updateAllFilters();
+  updateTopBar();
+  updateModeButtons();
+  fetchZohoInbox();
+}
+
+function updateModeButtons() {
+  document.querySelectorAll('[data-mode]').forEach(btn => {
+    const m = btn.dataset.mode;
+    if (m === 'DOY') btn.classList.toggle('active', doyActive);
+    else if (m === 'DOS') btn.classList.toggle('active', dosActive);
+    else if (m === 'DOM') btn.classList.toggle('active', domActive);
+  });
+  document.getElementById('heptad-btn').classList.toggle('active', heptadActive);
+}
+
+/* ===============================
    INIT
 =============================== */
 document.addEventListener('DOMContentLoaded',()=>{
   generateDOMCalendar();
 
-  // Try to restore from OAuth state
   const restored = restoreFilterFromState();
 
   if (restored) {
-    document.querySelectorAll('[data-mode]').forEach(b=>{
-      b.classList.remove('active');
-      if(b.dataset.mode===mode) b.classList.add('active');
-    });
-    document.getElementById('heptad-btn').classList.toggle('active', heptad);
+    updateModeButtons();
     updateAllFilters();
-    if (heptad && currentDayFilter !== null) setDayFilter(currentDayFilter);
-    if (mode === 'DOM' && currentDOMFilter !== null) setDOMFilter(currentDOMFilter);
-    if (mode === 'DOS' && currentSeason !== null) setSeason(currentSeason);
-    if (mode === 'DOY' && currentDOYMonth !== null) setDOYMonth(currentDOYMonth);
-    else if (mode === 'DOY' && currentDOYMonth === null) setDOYMonth(getGPCMonthFromDoy(GPC.gpcFromDays(GPC.daysFromGregorian(new Date())).doy));
+    if (doyActive && currentDOYMonth !== null) setDOYMonth(currentDOYMonth);
+    else if (doyActive && !currentDOYMonth) { const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date())); setDOYMonth(getGPCMonthFromDoy(todayGPC.doy)); }
+    if (dosActive && currentSeason !== null) setSeason(currentSeason);
+    if (domActive && currentDOMFilter !== null) setDOMFilter(currentDOMFilter);
+    if (heptadActive && currentDayFilter !== null) setDayFilter(currentDayFilter);
     updateTopBar();
     if (getToken()) fetchZohoInbox();
   } else {
+    doyActive = true; dosActive = false; domActive = false; heptadActive = false;
+    syncModeAndHeptad();
     const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date()));
     setDOYMonth(getGPCMonthFromDoy(todayGPC.doy));
+    updateModeButtons();
     updateAllFilters();
     updateTopBar();
   }
 
   loadProfile();
 
-  // Login button – uses global function zohoLogin
   const loginDiv = document.getElementById('zoho-login');
   loginDiv.innerHTML = '<button onclick="zohoLogin()">Login with Zoho</button>';
 
-  // Mode buttons
-  document.querySelectorAll('[data-mode]').forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      const m=btn.dataset.mode;
-      document.querySelectorAll('[data-mode]').forEach(b=>b.classList.remove('active'));
-      btn.classList.add('active');
-      if(m==='DOY'){ mode='DOY'; clearDOYFilter(); setDOYMonth(getGPCMonthFromDoy(GPC.gpcFromDays(GPC.daysFromGregorian(new Date())).doy)); }
-      else if(m==='DOS'){ mode='DOS'; clearDOSFilter(); const s=Math.floor((GPC.gpcFromDays(GPC.daysFromGregorian(new Date())).doy-1)/91)+1; setSeason(s); }
-      else if(m==='DOM'){ mode='DOM'; clearDOMFilter(); const md=getGPCMonthDay(GPC.gpcFromDays(GPC.daysFromGregorian(new Date())).doy); setDOMFilter(md.day); }
-      updateAllFilters(); updateTopBar(); fetchZohoInbox();
-    });
-  });
+  document.querySelector('[data-mode="DOY"]').addEventListener('click', toggleDOY);
+  document.querySelector('[data-mode="DOS"]').addEventListener('click', toggleDOS);
+  document.querySelector('[data-mode="DOM"]').addEventListener('click', toggleDOM);
+  document.getElementById('heptad-btn').addEventListener('click', toggleHeptad);
 
-  // Heptad button
-  document.getElementById('heptad-btn').addEventListener('click',()=>{
-    heptad=!heptad;
-    document.getElementById('heptad-btn').classList.toggle('active',heptad);
-    if(heptad){ showWeekFilter(); } else { hideWeekFilter(); clearDayFilter(); }
-    updateTopBar(); fetchZohoInbox();
-  });
-
-  // Filter button listeners
   document.getElementById('prev-day-btn').addEventListener('click',prevDay);
   document.getElementById('next-day-btn').addEventListener('click',nextDay);
   document.querySelector('#filter-status .filter-remove').addEventListener('click',clearDayFilter);
