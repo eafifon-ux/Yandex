@@ -256,9 +256,9 @@
         /* =========================
            Zoho config
         ========================= */
-        const CLIENT_ID = "1000.O0HMZM4A38KI7HT9GCOK400QJF9ZGO";
+        const CLIENT_ID = "1000.KH21SIV5VTY4USU27F4S5E2WKAYUJB";
         const REDIRECT_URI = "https://eafifon-ux.github.io/Yandex/";
-        const ACCOUNTS_URL = "https://accounts.zoho.com";
+        const ACCOUNTS_URL = "https://accounts.zoho.in";
 
         function getToken() {
             const hash = window.location.hash.substring(1);
@@ -356,7 +356,7 @@
             inboxDiv.innerHTML = "Token (first 20): " + token.substring(0, 20) + "<br>Loading...";
             try {
                 const proxyUrl = "https://corsproxy.io/?";
-                const targetUrl = "https://mail.zoho.com/api/accounts";
+                const targetUrl = "https://mail.zoho.in/api/accounts";
                 const res = await fetch(proxyUrl + encodeURIComponent(targetUrl), {
                     headers: { Authorization: "Zoho-oauthtoken " + token }
                 });
