@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GPC Mail</title>
     <style>
-        /* ... your existing CSS (unchanged) ... */
         body {
             margin: 0;
             font-family: Georgia, serif;
@@ -70,8 +69,7 @@
             opacity: .9;
         }
 
-        input,
-        textarea {
+        input, textarea {
             width: 100%;
             margin-top: 10px;
             padding: 12px;
@@ -103,22 +101,6 @@
         .mail-sender {
             color: #555;
             font-size: .95em;
-        }
-
-        .mail-date {
-            color: #1e6cff;
-            font-weight: bold;
-            font-size: .9em;
-        }
-
-        .mail-gpc {
-            display: inline-block;
-            background: #e8f1ff;
-            color: #0b3c8c;
-            padding: 2px 8px;
-            border-radius: 999px;
-            font-size: .8em;
-            margin-left: 8px;
         }
 
         .mail-preview {
@@ -163,6 +145,41 @@
             border-radius: 8px;
             margin: 10px 0;
         }
+
+.date-greg {
+    color: #999;
+    font-size: 0.8em;     /* smaller */
+    font-weight: normal;
+    display: inline-block;
+}
+.date-gpc {
+    color: #0b3c8c;
+    font-size: 1.15em;    /* bigger */
+    font-weight: bold;
+    display: inline-block;
+    background: #e8f1ff;
+    padding: 2px 10px;
+    border-radius: 999px;
+    margin-left: 8px;
+}
+
+
+        /* Keep old classes for backward compatibility (optional) */
+        .mail-date {
+            color: #1e6cff;
+            font-weight: bold;
+            font-size: .9em;
+        }
+
+        .mail-gpc {
+            display: inline-block;
+            background: #e8f1ff;
+            color: #0b3c8c;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: .8em;
+            margin-left: 8px;
+        }
     </style>
 </head>
 <body>
@@ -178,7 +195,6 @@
         <div class="card">
             <h2>Login with Zoho</h2>
             <div id="zoho-login"></div>
-
             <div id="profile" class="hidden">
                 <p>Logged in as: <strong id="userEmail"></strong></p>
                 <div class="badge" id="userGPC"></div>
@@ -203,276 +219,280 @@
     </div>
 
     <script>
-        /* =========================
-           GPC ENGINE (unchanged)
-        ========================= */
-        const GPC = {
-            epochUTC: Date.UTC(1982, 2, 24),
-            epochYear: 5979,
-            weekEmojis: ['🟠', '🟤', '🌺', '🌏', '🟢', '🔵', '🟣'],
+    /* =========================
+       GPC ENGINE (unchanged)
+    ========================= */
+    const GPC = {
+        epochUTC: Date.UTC(1982, 2, 24),
+        epochYear: 5979,
+        weekEmojis: ['🟠', '🟤', '🌺', '🌏', '🟢', '🔵', '🟣'],
 
-            daysFromGregorian(d) {
-                return Math.floor((d.getTime() - this.epochUTC) / 86400000);
-            },
+        daysFromGregorian(d) {
+            return Math.floor((d.getTime() - this.epochUTC) / 86400000);
+        },
 
-            gpcFromDays(days) {
-                const mod = (a, b) => ((a % b) + b) % b;
-                const leapWeeks = (r) => {
-                    let l = 0;
-                    if (mod(r, 7) >= 6) l += 7;
-                    if (mod(r, 49) >= 48) l += 7;
-                    if (mod(r + 29, 70) === 0) l += 7;
-                    return l;
-                };
-                let y = this.epochYear;
-                while (days >= 0) {
-                    const r = y - this.epochYear;
-                    const len = 364 + leapWeeks(r);
-                    if (days < len) break;
-                    days -= len;
-                    y++;
-                }
-                while (days < 0) {
-                    y--;
-                    const r = y - this.epochYear;
-                    const len = 364 + leapWeeks(r);
-                    days += len;
-                }
-                return { year: y, doy: days + 1 };
+        gpcFromDays(days) {
+            const mod = (a, b) => ((a % b) + b) % b;
+            const leapWeeks = (r) => {
+                let l = 0;
+                if (mod(r, 7) >= 6) l += 7;
+                if (mod(r, 49) >= 48) l += 7;
+                if (mod(r + 29, 70) === 0) l += 7;
+                return l;
+            };
+            let y = this.epochYear;
+            while (days >= 0) {
+                const r = y - this.epochYear;
+                const len = 364 + leapWeeks(r);
+                if (days < len) break;
+                days -= len;
+                y++;
             }
-        };
-
-        /* =========================
-           Display GPC in header
-        ========================= */
-        function updateCurrentGPC() {
-            const days = GPC.daysFromGregorian(new Date());
-            const g = GPC.gpcFromDays(days);
-            const emoji = GPC.weekEmojis[(g.doy - 1) % 7];
-            document.getElementById("gpcNow").innerHTML =
-                `${emoji} ${g.year}.${String(g.doy).padStart(3, "0")}`;
-        }
-        updateCurrentGPC();
-
-        /* =========================
-           Zoho config (now using .in and your new client ID)
-        ========================= */
-        const CLIENT_ID = "1000.KH21SIV5VTY4USU27F4S5E2WKAYUJB";
-        const REDIRECT_URI = "https://eafifon-ux.github.io/Yandex/";
-        const ACCOUNTS_URL = "https://accounts.zoho.in";
-
-        function getToken() {
-            const hash = window.location.hash.substring(1);
-            const params = new URLSearchParams(hash);
-            return params.get("access_token");
-        }
-
-        /* =========================
-           Load profile
-        ========================= */
-        async function loadProfile() {
-            const token = getToken();
-            if (!token) return;
-
-            try {
-                const proxyUrl = "https://corsproxy.io/?";
-                const targetUrl = `${ACCOUNTS_URL}/oauth/user/info`;
-                const res = await fetch(proxyUrl + encodeURIComponent(targetUrl), {
-                    headers: { Authorization: "Zoho-oauthtoken " + token }
-                });
-                if (!res.ok) {
-                    console.warn("Profile fetch failed – token may be invalid");
-                    return;
-                }
-                const data = await res.json();
-                document.getElementById("profile").classList.remove("hidden");
-                document.getElementById("userEmail").textContent = data.email || "Zoho User";
-                const g = GPC.gpcFromDays(GPC.daysFromGregorian(new Date()));
-                document.getElementById("userGPC").textContent =
-                    `Today in GPC: ${g.year}.${String(g.doy).padStart(3, "0")}`;
-            } catch (err) {
-                console.error(err);
+            while (days < 0) {
+                y--;
+                const r = y - this.epochYear;
+                const len = 364 + leapWeeks(r);
+                days += len;
             }
+            return { year: y, doy: days + 1 };
         }
+    };
 
-        /* =========================
-           GPC stamp & helpers
-        ========================= */
-        function getGPCStamp() {
-            const days = GPC.daysFromGregorian(new Date());
-            const g = GPC.gpcFromDays(days);
-            const emoji = GPC.weekEmojis[(g.doy - 1) % 7];
-            return `${emoji} ${g.year}.${String(g.doy).padStart(3, "0")}`;
-        }
+    /* =========================
+       Display GPC in header
+    ========================= */
+    function updateCurrentGPC() {
+        const days = GPC.daysFromGregorian(new Date());
+        const g = GPC.gpcFromDays(days);
+        const emoji = GPC.weekEmojis[(g.doy - 1) % 7];
+        document.getElementById("gpcNow").innerHTML =
+            `${emoji} ${g.year}.${String(g.doy).padStart(3, "0")}`;
+    }
+    updateCurrentGPC();
 
-        function gpcFromDate(date) {
-            const days = GPC.daysFromGregorian(date);
-            const g = GPC.gpcFromDays(days);
-            const emoji = GPC.weekEmojis[(g.doy - 1) % 7];
-            return `${emoji} ${g.year}.${String(g.doy).padStart(3, "0")}`;
-        }
+    /* =========================
+       Zoho config
+    ========================= */
+    const CLIENT_ID = "1000.KH21SIV5VTY4USU27F4S5E2WKAYUJB";
+    const REDIRECT_URI = "https://eafifon-ux.github.io/Yandex/";
+    const ACCOUNTS_URL = "https://accounts.zoho.in";
 
-        function convertGregorianDates(text) {
-            return text.replace(/\d{4}-\d{2}-\d{2}/g, d => {
-                const date = new Date(d + "T00:00:00Z");
-                const g = GPC.gpcFromDays(GPC.daysFromGregorian(date));
-                return `${d} (${g.year}.${String(g.doy).padStart(3, "0")})`;
+    function getToken() {
+        const hash = window.location.hash.substring(1);
+        const params = new URLSearchParams(hash);
+        return params.get("access_token");
+    }
+
+    /* =========================
+       Load profile
+    ========================= */
+    async function loadProfile() {
+        const token = getToken();
+        if (!token) return;
+        try {
+            const proxyUrl = "https://corsproxy.io/?";
+            const targetUrl = `${ACCOUNTS_URL}/oauth/user/info`;
+            const res = await fetch(proxyUrl + encodeURIComponent(targetUrl), {
+                headers: { Authorization: "Zoho-oauthtoken " + token }
             });
+            if (!res.ok) {
+                console.warn("Profile fetch failed – token may be invalid");
+                return;
+            }
+            const data = await res.json();
+            document.getElementById("profile").classList.remove("hidden");
+            document.getElementById("userEmail").textContent = data.email || "Zoho User";
+            const g = GPC.gpcFromDays(GPC.daysFromGregorian(new Date()));
+            document.getElementById("userGPC").textContent =
+                `Today in GPC: ${g.year}.${String(g.doy).padStart(3, "0")}`;
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    /* =========================
+       Format Gregorian date as YYYY-MM-DD
+    ========================= */
+    function formatGregorian(date) {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
+
+    /* =========================
+       GPC stamp & helpers
+    ========================= */
+    function getGPCStamp() {
+        const days = GPC.daysFromGregorian(new Date());
+        const g = GPC.gpcFromDays(days);
+        const emoji = GPC.weekEmojis[(g.doy - 1) % 7];
+        return `${emoji} ${g.year}.${String(g.doy).padStart(3, "0")}`;
+    }
+
+    function gpcFromDate(date) {
+        const days = GPC.daysFromGregorian(date);
+        const g = GPC.gpcFromDays(days);
+        const emoji = GPC.weekEmojis[(g.doy - 1) % 7];
+        return `${emoji} ${g.year}.${String(g.doy).padStart(3, "0")}`;
+    }
+
+    function convertGregorianDates(text) {
+        return text.replace(/\d{4}-\d{2}-\d{2}/g, d => {
+            const date = new Date(d + "T00:00:00Z");
+            const g = GPC.gpcFromDays(GPC.daysFromGregorian(date));
+            return `${d} (${g.year}.${String(g.doy).padStart(3, "0")})`;
+        });
+    }
+
+    /* =========================
+       Preview Mail – with both dates
+    ========================= */
+    function previewMail() {
+        const to = document.getElementById("to").value;
+        const subject = document.getElementById("subject").value;
+        let body = document.getElementById("body").value;
+        body = convertGregorianDates(body);
+        const now = new Date();
+        const greg = formatGregorian(now);
+        const gpc = getGPCStamp();
+
+        const finalMessage = 
+            `📅 Gregorian: ${greg}\n` +
+            `🌐 GPC: ${gpc}\n\n` +
+            `${body}\n\n----------------\nSent in GPC Time`;
+
+        document.getElementById("preview").innerHTML = `
+            <div class="mail">
+                <strong>To:</strong> ${to}<br>
+                <strong>Subject:</strong> ${subject}<br>
+                <span class="date-greg">${greg}</span>
+                <span class="date-gpc">${gpc}</span>
+                <pre style="white-space:pre-wrap;font-family:inherit;">${finalMessage}</pre>
+            </div>
+        `;
+    }
+
+    /* =========================
+       Helper function (escapeHtml)
+    ========================= */
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    /* =========================
+       Get accountId once (cached)
+    ========================= */
+    let cachedAccountId = null;
+
+    async function getAccountId() {
+        if (cachedAccountId) return cachedAccountId;
+        const token = getToken();
+        if (!token) return null;
+        try {
+            const proxyUrl = "https://corsproxy.io/?";
+            const targetUrl = "https://mail.zoho.in/api/accounts";
+            const res = await fetch(proxyUrl + encodeURIComponent(targetUrl), {
+                headers: { Authorization: "Zoho-oauthtoken " + token }
+            });
+            if (!res.ok) return null;
+            const data = await res.json();
+            if (data.data && data.data.length > 0) {
+                cachedAccountId = data.data[0].accountId;
+                return cachedAccountId;
+            }
+            return null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    /* =========================
+       Fetch inbox messages – updated display
+    ========================= */
+    async function fetchZohoInbox() {
+    const token = getToken();
+    if (!token) {
+        document.getElementById("inbox").innerHTML = 
+            `<div class="error-message">⚠️ No token found. <button onclick="window.location.reload()">Login first</button>.</div>`;
+        return;
+    }
+    const inboxDiv = document.getElementById("inbox");
+    inboxDiv.innerHTML = "Loading inbox...";
+
+    const accountId = await getAccountId();
+    if (!accountId) {
+        inboxDiv.innerHTML = `<div class="error-message">Could not retrieve account.</div>`;
+        return;
+    }
+
+    try {
+        const proxyUrl = "https://corsproxy.io/?";
+        const targetUrl = `https://mail.zoho.in/api/accounts/${accountId}/messages/view?limit=20`;
+
+        const res = await fetch(proxyUrl + encodeURIComponent(targetUrl), {
+            headers: { Authorization: "Zoho-oauthtoken " + token }
+        });
+
+        if (res.status === 401) {
+            const errData = await res.json();
+            inboxDiv.innerHTML = `
+                <div class="error-message">
+                    ❌ Token expired: ${errData.status?.description || "Unauthorized"}<br>
+                    <button onclick="window.location.reload()">🔄 Re-login</button>
+                </div>`;
+            return;
+        }
+        if (!res.ok) {
+            const errText = await res.text();
+            inboxDiv.innerHTML = `<p>HTTP error ${res.status}: ${errText}</p>`;
+            return;
         }
 
-        /* =========================
-           Preview Mail
-        ========================= */
-        function previewMail() {
-            const to = document.getElementById("to").value;
-            const subject = document.getElementById("subject").value;
-            let body = document.getElementById("body").value;
-            body = convertGregorianDates(body);
-            const stamp = getGPCStamp();
+        const data = await res.json();
+        if (!data.data || data.data.length === 0) {
+            inboxDiv.innerHTML = "<p>No messages found.</p>";
+            return;
+        }
 
-            const finalMessage =
-                `[${stamp}]\n\n${body}\n\n----------------\nSent in GPC Time`;
-
-            document.getElementById("preview").innerHTML = `
+        let html = `<p>Showing ${data.data.length} messages:</p>`;
+        data.data.forEach(msg => {
+            const subject = msg.subject || "(No subject)";
+            const from = msg.fromAddress || msg.sender || "Unknown";
+            const dateReceived = msg.date ? new Date(msg.date) : new Date();
+            const greg = formatGregorian(dateReceived);   // ← YYYY-MM-DD
+            const gpc = gpcFromDate(dateReceived);        // ← GPC string
+            const snippet = msg.summary || msg.snippet || "";
+            html += `
                 <div class="mail">
-                  <strong>To:</strong> ${to}<br>
-                  <strong>Subject:</strong> ${subject}<br>
-                  <div class="mail-date">${stamp}</div>
-                  <pre style="white-space:pre-wrap;font-family:inherit;">${finalMessage}</pre>
-                </div>
-              `;
-        }
+                    <div class="mail-subject">${escapeHtml(subject)}</div>
+                    <div class="mail-sender">${escapeHtml(from)}</div>
+                    <span class="date-greg">${greg}</span>   <!-- small Gregorian -->
+                    <span class="date-gpc">${gpc}</span>     <!-- big GPC -->
+                    <div class="mail-preview">${escapeHtml(snippet)}</div>
+                </div>`;
+        });
+        inboxDiv.innerHTML = html;
+    } catch (e) {
+        inboxDiv.innerHTML = `<p>Network/JS error: ${e.message}</p>`;
+    }
+}
 
-        /* =========================
-           Helper function (previously missing)
-        ========================= */
-        function escapeHtml(text) {
-            if (!text) return '';
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
 
-        /* =========================
-           Get accountId once (cached)
-        ========================= */
-        let cachedAccountId = null;
-
-        async function getAccountId() {
-            if (cachedAccountId) return cachedAccountId;
-            const token = getToken();
-            if (!token) return null;
-            try {
-                const proxyUrl = "https://corsproxy.io/?";
-                const targetUrl = "https://mail.zoho.in/api/accounts";
-                const res = await fetch(proxyUrl + encodeURIComponent(targetUrl), {
-                    headers: { Authorization: "Zoho-oauthtoken " + token }
-                });
-                if (!res.ok) return null;
-                const data = await res.json();
-                if (data.data && data.data.length > 0) {
-                    cachedAccountId = data.data[0].accountId;
-                    return cachedAccountId;
-                }
-                return null;
-            } catch (e) {
-                return null;
-            }
-        }
-
-        /* =========================
-           Fetch inbox messages – FIXED endpoint
-        ========================= */
-        async function fetchZohoInbox() {
-            const token = getToken();
-            if (!token) {
-                document.getElementById("inbox").innerHTML = 
-                    `<div class="error-message">⚠️ No token found. <button onclick="window.location.reload()">Login first</button>.</div>`;
-                return;
-            }
-            const inboxDiv = document.getElementById("inbox");
-            inboxDiv.innerHTML = "Loading inbox...";
-
-            const accountId = await getAccountId();
-            if (!accountId) {
-                inboxDiv.innerHTML = `<div class="error-message">Could not retrieve account.</div>`;
-                return;
-            }
-
-            try {
-                const proxyUrl = "https://corsproxy.io/?";
-                // Correct Zoho Mail API endpoint for listing messages:
-                const targetUrl = `https://mail.zoho.in/api/accounts/${accountId}/messages/view?limit=20`;
-
-                const res = await fetch(proxyUrl + encodeURIComponent(targetUrl), {
-                    headers: { Authorization: "Zoho-oauthtoken " + token }
-                });
-
-                if (res.status === 401) {
-                    const errData = await res.json();
-                    inboxDiv.innerHTML = `
-                        <div class="error-message">
-                            ❌ Token expired: ${errData.status?.description || "Unauthorized"}<br>
-                            <button onclick="window.location.reload()">🔄 Re-login</button>
-                        </div>`;
-                    return;
-                }
-                if (!res.ok) {
-                    const errText = await res.text();
-                    inboxDiv.innerHTML = `<p>HTTP error ${res.status}: ${errText}</p>`;
-                    return;
-                }
-
-                const data = await res.json();
-                if (!data.data || data.data.length === 0) {
-                    inboxDiv.innerHTML = "<p>No messages found.</p>";
-                    return;
-                }
-
-                let html = `<p>Showing ${data.data.length} messages:</p>`;
-                data.data.forEach(msg => {
-                    const subject = msg.subject || "(No subject)";
-                    const from = msg.fromAddress || msg.sender || "Unknown";
-                    const dateReceived = msg.date ? new Date(msg.date) : new Date();
-                    const gpcString = gpcFromDate(dateReceived);
-                    const snippet = msg.summary || msg.snippet || "";
-                    html += `
-                        <div class="mail">
-                            <div class="mail-subject">${escapeHtml(subject)}</div>
-                            <div class="mail-sender">${escapeHtml(from)}</div>
-                            <div class="mail-date">
-                                ${dateReceived.toLocaleDateString()} 
-                                <span class="mail-gpc">${gpcString}</span>
-                            </div>
-                            <div class="mail-preview">${escapeHtml(snippet)}</div>
-                        </div>`;
-                });
-                inboxDiv.innerHTML = html;
-            } catch (e) {
-                inboxDiv.innerHTML = `<p>Network/JS error: ${e.message}</p>`;
-            }
-        }
-
-        /* =========================
-           Init Zoho login
-        ========================= */
-        window.onload = () => {
-            loadProfile();
-
-            const loginDiv = document.getElementById("zoho-login");
-            const scopes = "ZohoMail.messages.ALL,ZohoMail.accounts.READ,ZohoMail.messages.READ,ZohoMail.folders.READ";
-
-            const authUrl =
-                `${ACCOUNTS_URL}/oauth/v2/auth?` +
-                `scope=${encodeURIComponent(scopes)}` +
-                `&client_id=${CLIENT_ID}` +
-                `&response_type=token` +
-                `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
-
-            loginDiv.innerHTML =
-                `<button onclick="window.location.href='${authUrl}'" style="padding:14px 24px;font-size:1.1em;">Login with Zoho</button>`;
-        };
-    </script>
+    /* =========================
+       Init Zoho login
+    ========================= */
+    window.onload = () => {
+        loadProfile();
+        const loginDiv = document.getElementById("zoho-login");
+        const scopes = "ZohoMail.messages.ALL,ZohoMail.accounts.READ,ZohoMail.messages.READ,ZohoMail.folders.READ";
+        const authUrl = `${ACCOUNTS_URL}/oauth/v2/auth?scope=${encodeURIComponent(scopes)}&client_id=${CLIENT_ID}&response_type=token&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
+        loginDiv.innerHTML = `<button onclick="window.location.href='${authUrl}'" style="padding:14px 24px;font-size:1.1em;">Login with Zoho</button>`;
+    };
+</script>
 
 </body>
 </html>
