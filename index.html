@@ -869,33 +869,45 @@ async function fetchFullMessage(messageId, folderId) {
   if (!token) return;
   const accountId = await getAccountId();
   if (!accountId) return;
-  try {
-    const proxy = "https://corsproxy.io/?";
-    // Use folder-scoped endpoint (more reliable)
-    const url = `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}`;
-    const res = await fetch(proxy + encodeURIComponent(url), {
-      headers: { Authorization: "Zoho-oauthtoken " + token }
-    });
-    if (!res.ok) {
-      // Fallback: try without folder (some accounts still work this way)
-      const fallbackUrl = `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}`;
-      const res2 = await fetch(proxy + encodeURIComponent(fallbackUrl), {
+
+  if (!messageId) {
+    document.getElementById('modalBody').innerHTML = `<div class="error-message">No message ID found. Please reload the inbox.</div>`;
+    return;
+  }
+
+  const proxy = "https://corsproxy.io/?";
+  let lastError = '';
+
+  // Try both endpoints: generic first, then folder-scoped
+  const urls = [
+    `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}`,
+    folderId ? `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}` : null
+  ].filter(Boolean);
+
+  for (const url of urls) {
+    try {
+      const res = await fetch(proxy + encodeURIComponent(url), {
         headers: { Authorization: "Zoho-oauthtoken " + token }
       });
-      if (!res2.ok) {
-        document.getElementById('modalBody').innerHTML = `<div class="error-message">Failed to load message (HTTP ${res2.status})</div>`;
+      if (res.ok) {
+        const data = await res.json();
+        renderMessage(data.data);
         return;
+      } else {
+        lastError = `HTTP ${res.status}`;
+        // Show the URL (token masked for security)
+        const maskedUrl = url.replace(token, 'TOKEN');
+        document.getElementById('modalBody').innerHTML = `<div class="error-message">Failed to load message (${lastError})<br><small>URL: ${maskedUrl}</small></div>`;
       }
-      const data = await res2.json();
-      renderMessage(data.data);
-    } else {
-      const data = await res.json();
-      renderMessage(data.data);
+    } catch (e) {
+      lastError = e.message;
     }
-  } catch (e) {
-    document.getElementById('modalBody').innerHTML = `<div class="error-message">Network error: ${e.message}</div>`;
   }
+
+  // If both failed, show final error
+  document.getElementById('modalBody').innerHTML = `<div class="error-message">Failed to load message after all attempts.<br>Last error: ${lastError}</div>`;
 }
+
 
 // Helper to render the message content in modal
 function renderMessage(msg) {
