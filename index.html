@@ -884,6 +884,24 @@ async function fetchFullMessage(messageId, folderId) {
   ].filter(Boolean);
 
   for (const url of urls) {
+    // 1) Try direct fetch (will likely fail with CORS, but shows if endpoint is valid)
+    try {
+      const directRes = await fetch(url, { headers: { Authorization: "Zoho-oauthtoken " + token } }).catch(e => null);
+      if (directRes && directRes.ok) {
+        const data = await directRes.json();
+        renderMessage(data.data);
+        return;
+      } else {
+        const status = directRes ? directRes.status : 'CORS error';
+        let errorBody = '';
+        if (directRes) try { errorBody = await directRes.text(); } catch(e) {}
+        errors.push(`Direct: ${url.replace(token, 'TOKEN')} → ${status} | Body: ${errorBody.substring(0, 300)}`);
+      }
+    } catch(e) {
+      errors.push(`Direct error: ${e.message}`);
+    }
+
+    // 2) Try with proxy
     try {
       const res = await fetch(proxy + encodeURIComponent(url), {
         headers: { Authorization: "Zoho-oauthtoken " + token }
@@ -893,15 +911,14 @@ async function fetchFullMessage(messageId, folderId) {
         renderMessage(data.data);
         return;
       } else {
-        // Try to get the response body for error detail
         let errorBody = '';
         try { errorBody = await res.text(); } catch(e) {}
         const maskedUrl = url.replace(token, 'TOKEN');
-        errors.push(`URL: ${maskedUrl} → HTTP ${res.status} | Body: ${errorBody.substring(0, 300)}`);
+        errors.push(`Proxy: ${maskedUrl} → HTTP ${res.status} | Body: ${errorBody.substring(0, 300)}`);
       }
     } catch (e) {
       const maskedUrl = url.replace(token, 'TOKEN');
-      errors.push(`URL: ${maskedUrl} → ${e.message}`);
+      errors.push(`Proxy error: ${maskedUrl} → ${e.message}`);
     }
   }
 
@@ -911,12 +928,10 @@ async function fetchFullMessage(messageId, folderId) {
       Account ID: ${accountId}<br>
       Message ID: ${messageId}<br>
       Folder ID: ${folderId || 'none'}<br><br>
-      <strong>Attempts:</strong><br>
+      <strong>Attempts (direct then proxy):</strong><br>
       ${errors.join('<br>')}
     </div>`;
 }
-
-
 
 
 // Helper to render the message content in modal
