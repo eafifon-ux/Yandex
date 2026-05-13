@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -331,7 +332,7 @@
         }
 
         /* =========================
-           Simplified debug fetch – shows EXACT error
+           Fixed fetchZohoInbox – uses CORS proxy
         ========================= */
         async function fetchZohoInbox() {
             const token = getToken();
@@ -339,7 +340,9 @@
             const inboxDiv = document.getElementById("inbox");
             inboxDiv.innerHTML = "Token (first 20): " + token.substring(0, 20) + "<br>Testing account API...";
             try {
-                const res = await fetch("https://mail.zoho.com/api/accounts", {
+                const proxyUrl = "https://corsproxy.io/?";
+                const targetUrl = "https://mail.zoho.com/api/accounts";
+                const res = await fetch(proxyUrl + encodeURIComponent(targetUrl), {
                     headers: { Authorization: "Zoho-oauthtoken " + token }
                 });
                 if (!res.ok) {
@@ -377,3 +380,4 @@
 
 </body>
 </html>
+```
