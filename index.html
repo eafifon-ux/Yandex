@@ -617,16 +617,22 @@ function getGPCBadgeHTML(dateObj) {
   }
   
   if (timeMode === 'sun') {
+    // Blue pill = GPC Date
+    const days = GPC.daysFromGregorian(dateObj);
+    const g = GPC.gpcFromDays(days);
+    const gpcDateStr = formatGPC(g); // This gives "🟤 6023.058"
+    
+    // Orange pill = SUN Time
     const gpct = getGPCTime(dateObj);
     const timeStr = String(gpct.hour).padStart(2, '0') + ':' + String(gpct.minute).padStart(2, '0');
-    const period = gpct.period;
+    
     return `
-      <span class="date-gpc">${formatDisplayTime(dateObj)}</span>
-      <span class="sun-time">${timeStr} ${period}</span>
+      <span class="date-gpc">${gpcDateStr}</span>
+      <span class="sun-time">${timeStr} ${gpct.period}</span>
     `;
   }
   
-  // Default GPC mode
+  // Normal GPC mode
   return `<span class="date-gpc">${formatDisplayTime(dateObj)}</span>`;
 }
 
