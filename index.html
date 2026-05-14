@@ -742,12 +742,21 @@ function filterByDOYMonth(messages, month) {
 
 function applyFilters(messages) {
   let filtered = messages;
-  if (doyActive && currentDOYMonth !== null) filtered = filterByDOYMonth(filtered, currentDOYMonth);
-  else if (dosActive && currentSeason !== null) filtered = filterBySeason(filtered, currentSeason);
-  else if (domActive && currentDOMFilter !== null) filtered = filterByDOM(filtered, currentDOMFilter);
-  if (heptadActive && currentDayFilter !== null && !doyActive && !dosActive && !domActive) filtered = filterByDay(filtered, currentDayFilter);
+  // Primary filters (DOY, DOS, DOM) always apply when active
+  if (doyActive && currentDOYMonth !== null) {
+    filtered = filterByDOYMonth(filtered, currentDOYMonth);
+  } else if (dosActive && currentSeason !== null) {
+    filtered = filterBySeason(filtered, currentSeason);
+  } else if (domActive && currentDOMFilter !== null) {
+    filtered = filterByDOM(filtered, currentDOMFilter);
+  }
+  // Heptad filter only applies when it's the *only* active filter
+  if (heptadActive && currentDayFilter !== null && !doyActive && !dosActive && !domActive) {
+    filtered = filterByDay(filtered, currentDayFilter);
+  }
   return filtered;
 }
+
 
 // Message store for inbox data
 const messageStore = new Map();
