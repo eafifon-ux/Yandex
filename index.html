@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Shoonya Mail + Matka Filters</title>
 <style>
-  /* … your existing CSS, unchanged … */
   body {
     margin:0; font-family: Arial, sans-serif; background:#f5f7fb; padding:20px;
     color:#123;
@@ -676,10 +675,10 @@ function updateFilterTableUI(){
 function parseDate(msg) {
   let raw = msg.date || msg.receivedTime || msg.receivedDate || msg.sentDate;
   if (!raw) return new Date();
-  if (typeof raw === 'number') return new Date(raw);
   const d = new Date(raw);
   if (!isNaN(d.getTime())) return d;
-  return new Date(raw.replace(/(\+|-)\d{2}:?\d{2}$/, ''));
+  if (typeof raw === 'string' && /^\d{13}$/.test(raw)) return new Date(parseInt(raw, 10));
+  return new Date();
 }
 
 function filterByDay(messages, dayIndex) {
@@ -719,6 +718,7 @@ function filterByDOYMonth(messages, month) {
 
 function applyFilters(messages) {
   let filtered = messages;
+  // Only filter if a primary filter is active AND has a value set
   if (doyActive && currentDOYMonth !== null) {
     filtered = filterByDOYMonth(filtered, currentDOYMonth);
   } else if (dosActive && currentSeason !== null) {
@@ -726,6 +726,7 @@ function applyFilters(messages) {
   } else if (domActive && currentDOMFilter !== null) {
     filtered = filterByDOM(filtered, currentDOMFilter);
   }
+  // Heptad filter only when it's the only active filter
   if (heptadActive && currentDayFilter !== null && !doyActive && !dosActive && !domActive) {
     filtered = filterByDay(filtered, currentDayFilter);
   }
