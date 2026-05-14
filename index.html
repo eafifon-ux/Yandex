@@ -1149,21 +1149,45 @@ function toggleDOS() {
   syncModeAndHeptad(); updateAllFilters(); updateTopBar(); updateModeButtons(); fetchZohoInbox();
 }
 function toggleDOM() {
-  if (domActive) { domActive = false; currentDOMFilter = null; clearDOMFilter(); }
-  else {
+  if (domActive) {
+    domActive = false;
+    currentDOMFilter = null;
+    clearDOMFilter();
+  } else {
     domActive = true;
-    if (!currentDOMFilter) { const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date())); const md = getGPCMonthDay(todayGPC.doy); setDOMFilter(md.day); }
+    if (!currentDOMFilter) {
+      const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date()));
+      const md = getGPCMonthDay(todayGPC.doy);
+      setDOMFilter(md.day);
+    }
   }
-  syncModeAndHeptad(); updateAllFilters(); updateTopBar(); updateModeButtons(); fetchZohoInbox();
+  syncModeAndHeptad();
+  updateAllFilters();
+  updateTopBar();
+  updateModeButtons();
+  fetchZohoInbox();
 }
+
 function toggleHeptad() {
-  if (heptadActive) { heptadActive = false; currentDayFilter = null; clearDayFilter(); }
-  else {
+  if (heptadActive) {
+    heptadActive = false;
+    currentDayFilter = null;
+    clearDayFilter();
+  } else {
     heptadActive = true;
-    if (!currentDayFilter) { const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date())); const dayIdx = GPC.getDayOfWeekIndex(todayGPC.doy); setDayFilter(dayIdx); }
+    if (!currentDayFilter) {
+      const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date()));
+      const dayIdx = GPC.getDayOfWeekIndex(todayGPC.doy);
+      setDayFilter(dayIdx);
+    }
   }
-  syncModeAndHeptad(); updateAllFilters(); updateTopBar(); updateModeButtons(); fetchZohoInbox();
+  syncModeAndHeptad();
+  updateAllFilters();
+  updateTopBar();
+  updateModeButtons();
+  fetchZohoInbox();
 }
+
 function updateModeButtons() {
   document.querySelectorAll('[data-mode]').forEach(btn => {
     const m = btn.dataset.mode;
