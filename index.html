@@ -119,9 +119,34 @@
   .mail-subject { font-weight:bold; font-size:1.05em; color:#1e6cff; }
   .mail-sender { color:#555; font-size:.95em; margin-top:2px; }
   .mail-preview { color:#777; font-size:.9em; margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .mail-meta { margin-top:6px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-  .date-greg { color:#999; font-size:.82em; }
-  .date-gpc { color:#0b3c8c; font-size:1.05em; font-weight:bold; background:#e8f1ff; padding:2px 12px; border-radius:999px; }
+  .date-gpc {
+  color: #0b3c8c;
+  font-size: 1.05em;
+  font-weight: bold;
+  background: #e8f1ff;        /* Consistent light blue */
+  padding: 3px 12px;
+  border-radius: 999px;
+  display: inline-block;
+  margin: 2px 0;
+}
+
+.sun-time {
+  color: #f97316;
+  font-weight: 600;
+  background: #fff7ed;
+  padding: 3px 8px;
+  border-radius: 999px;
+  display: inline-block;
+  margin: 2px 0;
+}
+
+/* Make sure both look like "pills" */
+.mail-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 
   .modal-overlay {
     display: none;
@@ -188,14 +213,7 @@
   }
   .loading-text { text-align: center; padding: 30px; color: #888; }
   
-  body.time-mode-sun .sun-time {
-  color: #f97316;          /* orange text */
-  font-weight: 600;        /* semibold */
-  background: #fff7ed;     /* light orange bg */
-  padding: 1px 4px;
-  border-radius: 4px;
-  margin-left: 2px;
-}
+  
 
   
 </style>
@@ -869,7 +887,8 @@ function renderInbox(messages) {
         <div class="mail-subject">${escapeHtml(sub)}</div>
         <div class="mail-sender">${escapeHtml(from)}</div>
         <div class="mail-meta">
-          <span class="date-greg">${timeMode === 'utc' ? displayTime : greg}</span>
+          <span class="date-greg">${timeMode === 'utc' ? displayTime : (timeMode === 'sun' ? '' : greg)}</span>
+
           ${gpcHtml}
         </div>
         <div class="mail-preview">${escapeHtml(snippet)}</div>
@@ -921,13 +940,18 @@ function previewMail(){
   const label = timeMode === 'utc' ? 'UTC' : (timeMode === 'sun' ? 'SUN' : 'GPC');
   const final = `📅 ${label}: ${currentTime}\n\n${body}\n\n----------------\n`;
   const greg = formatGregorian(now);
-  document.getElementById("preview").innerHTML=`
-    <div class="mail">
-      <div><strong>To:</strong> ${to}</div>
-      <div><strong>Subject:</strong> ${subj}</div>
-      <div class="mail-meta"><span class="date-greg">${greg}</span><span class="date-gpc">${currentTime}</span></div>
-      <pre style="background:#f4f4f4;padding:10px;border-radius:6px;white-space:pre-wrap;font-family:inherit;">${final}</pre>
-    </div>`;
+  document.getElementById("preview").// Inside renderInbox(), replace the html += ` ... ` part with this:
+
+html += `
+  <div class="mail" data-message-id="\( {escapeHtml(messageId || '')}" data-folder-id=" \){escapeHtml(msg.folderId || '')}" style="cursor:pointer;">
+    <div class="mail-subject">${escapeHtml(sub)}</div>
+    <div class="mail-sender">${escapeHtml(from)}</div>
+    <div class="mail-meta">
+      <span class="date-greg">${timeMode === 'utc' ? displayTime : greg}</span>
+      ${getGPCBadgeHTML(date)}
+    </div>
+    <div class="mail-preview">${escapeHtml(snippet)}</div>
+  </div>`;
 }
 
 /* ===============================
@@ -1027,6 +1051,31 @@ if (timeMode === 'sun') {
   modalEl.innerHTML = `<span class="date-gpc">${datePart}</span><span class="sun-time">${timePart}</span>`;
 } else {
   modalEl.textContent = formatZuluTime(dateObj);
+}
+
+function getGPCBadgeHTML(dateObj) {
+  if (!dateObj || isNaN(dateObj.getTime())) return '';
+  
+  if (timeMode === 'utc') {
+    return '';
+  }
+  
+  const displayTime = formatDisplayTime(dateObj);
+  const zuluTime = formatZuluTime(dateObj);
+  
+  if (timeMode === 'sun') {
+    // Split date and time for SUN mode
+    const parts = zuluTime.split(' ');
+    const datePart = parts.slice(0, 2).join(' '); // e.g. "🟤 6023.058"
+    const timePart = parts.slice(2).join(' '); // e.g. "10:15 Alpha"
+    return `
+      <span class="date-gpc">${datePart}</span>
+      <span class="sun-time">${timePart}</span>
+    `;
+  } else {
+    // Normal GPC mode
+    return `<span class="date-gpc">${displayTime}</span>`;
+  }
 }
  // uses full GPC+time for GPC/SUN
 
@@ -1321,12 +1370,14 @@ function toggleTimeMode() {
   let idx = modes.indexOf(timeMode);
   idx = (idx + 1) % modes.length;
   timeMode = modes[idx];
+  document.body.classList.toggle('time-mode-sun', timeMode === 'sun');  // <-- add this
   const btn = document.getElementById('time-toggle');
   btn.textContent = timeMode.toUpperCase();
   btn.classList.toggle('active', timeMode !== 'gpc');
   updateTopBar();
   fetchZohoInbox();
 }
+
 
 function updateModeButtons() {
   document.querySelectorAll('[data-mode]').forEach(btn => {
