@@ -854,31 +854,16 @@ function renderInbox(messages) {
     return;
   }
   let html = `<p>Showing ${messages.length} messages:</p>`;
+  
   messages.forEach(msg => {
     const messageId = msg.messageId || msg.id;
     if (messageId) messageStore.set(String(messageId), msg);
-
+    
     const sub = msg.subject || "(No subject)";
     const from = msg.fromAddress || msg.sender || "Unknown";
     const date = parseDate(msg);
-    const greg = formatGregorian(date);
-    const displayTime = (timeMode === 'gpc') ? formatDisplayTime(date) : formatZuluTime(date);
     const snippet = msg.summary || msg.snippet || "";
-
-    // --- NEW: Build the GPC/SUN time HTML correctly ---
-    let gpcHtml = '';
-    if (timeMode === 'utc') {
-      gpcHtml = '';
-    } else if (timeMode === 'sun') {
-      const parts = displayTime.split(' ');
-      const datePart = parts[0] + ' ' + parts[1];       // "🟤 6023.058"
-      const timePart = parts.slice(2).join(' ');         // "10:15 Alpha"
-      gpcHtml = `<span class="date-gpc">${datePart}</span><span class="sun-time">${timePart}</span>`;
-    } else {
-      // GPC mode (date only)
-      gpcHtml = `<span class="date-gpc">${displayTime}</span>`;
-    }
-
+    
     html += `
       <div class="mail"
            data-message-id="${escapeHtml(messageId || '')}"
@@ -887,9 +872,7 @@ function renderInbox(messages) {
         <div class="mail-subject">${escapeHtml(sub)}</div>
         <div class="mail-sender">${escapeHtml(from)}</div>
         <div class="mail-meta">
-          <span class="date-greg">${timeMode === 'utc' ? displayTime : (timeMode === 'sun' ? '' : greg)}</span>
-
-          ${gpcHtml}
+          ${getGPCBadgeHTML(date)}
         </div>
         <div class="mail-preview">${escapeHtml(snippet)}</div>
       </div>`;
@@ -1057,25 +1040,30 @@ function getGPCBadgeHTML(dateObj) {
   if (!dateObj || isNaN(dateObj.getTime())) return '';
   
   if (timeMode === 'utc') {
-    return '';
+    const utcFull = formatUTCTime(dateObj); // e.g. "2026-05-14 11:43Z"
+    const [datePart, timePart] = utcFull.split(' ');
+    return `
+      <span class="date-greg">${datePart}</span>
+      <span class="date-gpc utc-pill">${timePart}</span>
+    `;
   }
-  
-  const displayTime = formatDisplayTime(dateObj);
-  const zuluTime = formatZuluTime(dateObj);
   
   if (timeMode === 'sun') {
-    // Split date and time for SUN mode
-    const parts = zuluTime.split(' ');
-    const datePart = parts.slice(0, 2).join(' '); // e.g. "🟤 6023.058"
-    const timePart = parts.slice(2).join(' '); // e.g. "10:15 Alpha"
+    const days = GPC.daysFromGregorian(dateObj);
+    const g = GPC.gpcFromDays(days);
+    const gpcDate = formatGPC(g);
+    
+    const gpct = getGPCTime(dateObj);
+    const timeStr = String(gpct.hour).padStart(2, '0') + ':' + String(gpct.minute).padStart(2, '0');
+    
     return `
-      <span class="date-gpc">${datePart}</span>
-      <span class="sun-time">${timePart}</span>
+      <span class="date-gpc">${gpcDate}</span>
+      <span class="sun-time">${timeStr} ${gpct.period}</span>
     `;
-  } else {
-    // Normal GPC mode
-    return `<span class="date-gpc">${displayTime}</span>`;
   }
+  
+  // Normal GPC mode
+  return `<span class="date-gpc">${formatDisplayTime(dateObj)}</span>`;
 }
  // uses full GPC+time for GPC/SUN
 
