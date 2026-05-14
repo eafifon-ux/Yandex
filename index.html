@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Shoonya Mail + Heptad Fix</title>
+<title>Shoonya Mail + Heptad + Unified Timestamps</title>
 <style>
   body {
     margin:0; font-family: Arial, sans-serif; background:#f5f7fb; padding:20px;
@@ -480,7 +480,7 @@ function getGPCMonthDay(gpcDoy) {
   return {month:12,day:r};
 }
 
-// ----- Time helpers (only used in SUN mode) -----
+// ----- Time helpers -----
 function getGPCTime(dateObj) {
   const localHours = dateObj.getHours();
   const localMinutes = dateObj.getMinutes();
@@ -539,7 +539,18 @@ function formatUTCTime(dateObj) {
   return `${y}-${m}-${d} ${hh}:${mm}Z`;
 }
 
-// ----- Main display function -----
+// ----- Full GPC date + time (for inbox and modal) -----
+function formatFullGPCWithTime(dateObj) {
+  if (!dateObj || isNaN(dateObj.getTime())) return '';
+  const days = GPC.daysFromGregorian(dateObj);
+  const g = GPC.gpcFromDays(days);
+  const emoji = GPC.weekEmojis[(g.doy - 1) % 7];
+  const gpct = getGPCTime(dateObj);
+  const timeStr = String(gpct.hour).padStart(2,'0') + ':' + String(gpct.minute).padStart(2,'0');
+  return `${emoji} ${g.year}.${String(g.doy).padStart(3,'0')} ${timeStr} ${gpct.period}`;
+}
+
+// ----- Main display function for top bar -----
 function formatDisplayTime(dateObj) {
   if (!dateObj || isNaN(dateObj.getTime())) return '';
   if (timeMode === 'utc') return formatUTCTime(dateObj);
@@ -551,7 +562,9 @@ function formatDisplayTime(dateObj) {
 }
 
 function formatZuluTime(dateObj) {
-  return formatDisplayTime(dateObj);
+  // For modal and inbox: use full GPC+time for GPC and SUN modes
+  if (timeMode === 'utc') return formatUTCTime(dateObj);
+  return formatFullGPCWithTime(dateObj);
 }
 
 /* ===============================
@@ -784,6 +797,7 @@ function filterByDOYMonth(messages, month) {
 
 function applyFilters(messages) {
   let filtered = messages;
+  // Apply date mode filter (DOY/DOS/DOM)
   if (doyActive && currentDOYMonth !== null) {
     filtered = filterByDOYMonth(filtered, currentDOYMonth);
   } else if (dosActive && currentSeason !== null) {
@@ -791,7 +805,8 @@ function applyFilters(messages) {
   } else if (domActive && currentDOMFilter !== null) {
     filtered = filterByDOM(filtered, currentDOMFilter);
   }
-  if (heptadActive && currentDayFilter !== null && !doyActive && !dosActive && !domActive) {
+  // Heptad day filter: applied ALWAYS if active and a day is selected
+  if (heptadActive && currentDayFilter !== null) {
     filtered = filterByDay(filtered, currentDayFilter);
   }
   return filtered;
@@ -814,7 +829,7 @@ function renderInbox(messages) {
     const from = msg.fromAddress || msg.sender || "Unknown";
     const date = parseDate(msg);
     const greg = formatGregorian(date);
-    const displayTime = formatDisplayTime(date);
+    const displayTime = formatZuluTime(date); // uses full GPC+time for GPC/SUN
     const snippet = msg.summary || msg.snippet || "";
     html += `
       <div class="mail"
@@ -972,7 +987,7 @@ function renderMessageWithMeta(msg) {
   document.getElementById('modalTo').textContent = 'To: ' + (to || 'Unknown');
 
   const dateObj = parseDate(msg);
-  document.getElementById('modalDateZulu').textContent = formatZuluTime(dateObj);
+  document.getElementById('modalDateZulu').textContent = formatZuluTime(dateObj); // uses full GPC+time for GPC/SUN
 
   document.getElementById('modalBody').innerHTML = '<div class="loading-text">Loading message body...</div>';
   fetchContentOnly(msg.messageId || msg.id, msg.folderId);
@@ -1136,7 +1151,7 @@ function renderMessage(msg) {
     if (isNaN(dateObj.getTime()) && /^\d{13}$/.test(rawDate)) dateObj = new Date(parseInt(rawDate, 10));
     if (isNaN(dateObj.getTime())) { const parsed = Date.parse(rawDate); if (!isNaN(parsed)) dateObj = new Date(parsed); }
   }
-  document.getElementById('modalDateZulu').textContent = formatZuluTime(dateObj);
+  document.getElementById('modalDateZulu').textContent = formatZuluTime(dateObj); // full GPC+time for GPC/SUN
 
   let htmlContent = msg.htmlContent || msg.content || msg.body || '';
   if (htmlContent) {
@@ -1219,28 +1234,24 @@ function toggleHeptad() {
       currentDayFilter = null;
       document.getElementById('filter-status').style.display = 'none';
       document.querySelectorAll('.filter-day').forEach(td => td.classList.remove('active'));
+      hideWeekFilter();
     }
   } else {
-    // Activate heptad; if no other mode is active, set a default day filter
     heptadActive = true;
-    if (!doyActive && !dosActive && !domActive) {
-      if (!currentDayFilter) {
-        const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date()));
-        const dayIdx = GPC.getDayOfWeekIndex(todayGPC.doy);
-        setDayFilter(dayIdx);   // this also fetches inbox
-      }
+    // Always set today's day if none selected
+    if (!currentDayFilter) {
+      const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date()));
+      const dayIdx = GPC.getDayOfWeekIndex(todayGPC.doy);
+      setDayFilter(dayIdx);   // this shows filter-status and fetches inbox
     } else {
-      // Heptad is active but another mode already has a filter; no week filter shown
+      showWeekFilter();
+      fetchZohoInbox();
     }
   }
   syncModeAndHeptad();
-  updateAllFilters();
+  updateAllFilters();  // ensure week filter is shown if active
   updateTopBar();
   updateModeButtons();
-  if (!(heptadActive && currentDayFilter !== null && !doyActive && !dosActive && !domActive)) {
-    // only fetch if we didn't already fetch via setDayFilter
-    fetchZohoInbox();
-  }
 }
 
 // Triple time toggle
