@@ -59,6 +59,8 @@
   }
   #controls button:hover { background:#f0f5ff; }
   #controls button.active { background:#1e6cff; color:white; border-color:#1e6cff; }
+  #controls button.toggle { background:#f0f5ff; border:2px solid #aac7ff; }
+  #controls button.toggle.active { background:#555; color:white; border-color:#555; }
   #week-filter-container, #dom-filter-container, #dos-filter-container, #doy-filter-container {
     text-align:center; margin-bottom:20px; padding:15px; background:white;
     border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,.08); display:none;
@@ -207,12 +209,13 @@
     </div>
   </div>
 
-  <!-- FILTER CONTROLS -->
+  <!-- FILTER CONTROLS + UTC TOGGLE -->
   <div id="controls">
     <button data-mode="DOY" class="active">DOY</button>
     <button data-mode="DOS">DOS</button>
     <button data-mode="DOM" id="dom-btn">DOM</button>
     <button id="heptad-btn">Heptad</button>
+    <button id="utc-toggle" class="toggle">GPC</button>
   </div>
 
   <!-- Week Day Filter -->
@@ -436,6 +439,7 @@ let doyActive = true;
 let dosActive = false;
 let domActive = false;
 let heptadActive = false;
+let showUTC = false;            // NEW: UTC toggle flag
 
 function getMode() {
   if (doyActive) return 'DOY';
@@ -500,16 +504,42 @@ function formatGPC(gpcDate) {
   }
 }
 
-// ----- ZULU TIME FORMATTING (no Gregorian) -----
+// ----- UTC / GPC display formatter -----
+function formatDisplayTime(dateObj) {
+  if (!dateObj || isNaN(dateObj.getTime())) return '';
+  if (showUTC) {
+    const y = dateObj.getUTCFullYear();
+    const m = String(dateObj.getUTCMonth()+1).padStart(2,'0');
+    const d = String(dateObj.getUTCDate()).padStart(2,'0');
+    const hh = String(dateObj.getUTCHours()).padStart(2,'0');
+    const mm = String(dateObj.getUTCMinutes()).padStart(2,'0');
+    return `${y}-${m}-${d} ${hh}:${mm}Z`;
+  } else {
+    const days = GPC.daysFromGregorian(dateObj);
+    const g = GPC.gpcFromDays(days);
+    return formatGPC(g);
+  }
+}
+
+// ----- ZULU TIME FORMATTING (now obeys showUTC) -----
 function formatZuluTime(dateObj) {
   if (!dateObj || isNaN(dateObj.getTime())) return '';
-  const utc = new Date(dateObj.getTime());
-  const days = GPC.daysFromGregorian(utc);
-  const g = GPC.gpcFromDays(days);
-  const emoji = GPC.weekEmojis[(g.doy - 1) % 7];
-  const hh = String(utc.getUTCHours()).padStart(2,'0');
-  const mm = String(utc.getUTCMinutes()).padStart(2,'0');
-  return `${emoji} ${g.year}.${String(g.doy).padStart(3,'0')} ${hh}:${mm}Z`;
+  if (showUTC) {
+    const y = dateObj.getUTCFullYear();
+    const m = String(dateObj.getUTCMonth()+1).padStart(2,'0');
+    const d = String(dateObj.getUTCDate()).padStart(2,'0');
+    const hh = String(dateObj.getUTCHours()).padStart(2,'0');
+    const mm = String(dateObj.getUTCMinutes()).padStart(2,'0');
+    return `${y}-${m}-${d} ${hh}:${mm}Z`;
+  } else {
+    const utc = new Date(dateObj.getTime());
+    const days = GPC.daysFromGregorian(utc);
+    const g = GPC.gpcFromDays(days);
+    const emoji = GPC.weekEmojis[(g.doy - 1) % 7];
+    const hh = String(utc.getUTCHours()).padStart(2,'0');
+    const mm = String(utc.getUTCMinutes()).padStart(2,'0');
+    return `${emoji} ${g.year}.${String(g.doy).padStart(3,'0')} ${hh}:${mm}Z`;
+  }
 }
 
 /* ===============================
@@ -566,10 +596,21 @@ function zohoLogin() {
    UI Functions
 =============================== */
 function updateTopBar() {
-  const days=GPC.daysFromGregorian(new Date());
-  const g=GPC.gpcFromDays(days);
-  document.getElementById("gpc-display").textContent=formatGPC(g);
+  const now = new Date();
+  if (showUTC) {
+    const y = now.getUTCFullYear();
+    const m = String(now.getUTCMonth()+1).padStart(2,'0');
+    const d = String(now.getUTCDate()).padStart(2,'0');
+    const hh = String(now.getUTCHours()).padStart(2,'0');
+    const mm = String(now.getUTCMinutes()).padStart(2,'0');
+    document.getElementById("gpc-display").textContent = `${y}-${m}-${d} ${hh}:${mm} UTC`;
+  } else {
+    const days = GPC.daysFromGregorian(now);
+    const g = GPC.gpcFromDays(days);
+    document.getElementById("gpc-display").textContent = formatGPC(g);
+  }
 }
+
 function showWeekFilter(){ document.getElementById("week-filter-container").style.display="block"; }
 function hideWeekFilter(){ document.getElementById("week-filter-container").style.display="none"; }
 function showDOMFilter(){ document.getElementById("dom-filter-container").style.display="block"; }
@@ -580,13 +621,11 @@ function showDOYFilter(){ document.getElementById("doy-filter-container").style.
 function hideDOYFilter(){ document.getElementById("doy-filter-container").style.display="none"; }
 function updateAllFilters(){
   hideWeekFilter(); hideDOMFilter(); hideDOSFilter(); hideDOYFilter();
-  // Show week filter only when heptad filter is actually active (i.e., a day filter exists)
   if (heptadActive && currentDayFilter !== null) showWeekFilter();
   if(domActive) showDOMFilter();
   if(dosActive) showDOSFilter();
   if(doyActive) showDOYFilter();
 }
-
 
 function generateDOMCalendar(){
   const tbody=document.getElementById("dom-calendar-body");
@@ -744,7 +783,6 @@ function filterByDOYMonth(messages, month) {
 
 function applyFilters(messages) {
   let filtered = messages;
-  // Primary filters (DOY, DOS, DOM) always apply when active
   if (doyActive && currentDOYMonth !== null) {
     filtered = filterByDOYMonth(filtered, currentDOYMonth);
   } else if (dosActive && currentSeason !== null) {
@@ -752,15 +790,12 @@ function applyFilters(messages) {
   } else if (domActive && currentDOMFilter !== null) {
     filtered = filterByDOM(filtered, currentDOMFilter);
   }
-  // Heptad filter only applies when it's the *only* active filter
   if (heptadActive && currentDayFilter !== null && !doyActive && !dosActive && !domActive) {
     filtered = filterByDay(filtered, currentDayFilter);
   }
   return filtered;
 }
 
-
-// Message store for inbox data
 const messageStore = new Map();
 
 function renderInbox(messages) {
@@ -778,7 +813,7 @@ function renderInbox(messages) {
     const from = msg.fromAddress || msg.sender || "Unknown";
     const date = parseDate(msg);
     const greg = formatGregorian(date);
-    const gpc = formatGPC(GPC.gpcFromDays(GPC.daysFromGregorian(date)));
+    const displayTime = formatDisplayTime(date);
     const snippet = msg.summary || msg.snippet || "";
     html += `
       <div class="mail"
@@ -788,8 +823,8 @@ function renderInbox(messages) {
         <div class="mail-subject">${escapeHtml(sub)}</div>
         <div class="mail-sender">${escapeHtml(from)}</div>
         <div class="mail-meta">
-          <span class="date-greg">${greg}</span>
-          <span class="date-gpc">${gpc}</span>
+          <span class="date-greg">${showUTC ? displayTime : greg}</span>
+          <span class="date-gpc">${showUTC ? '' : displayTime}</span>
         </div>
         <div class="mail-preview">${escapeHtml(snippet)}</div>
       </div>`;
@@ -823,7 +858,7 @@ async function fetchZohoInbox() {
 }
 
 /* ===============================
-   PREVIEW
+   PREVIEW (obeys UTC toggle)
 =============================== */
 function previewMail(){
   const to=document.getElementById("to").value;
@@ -835,14 +870,17 @@ function previewMail(){
     return `${m} (${g.year}.${String(g.doy).padStart(3,"0")})`;
   });
   const now=new Date();
-  const greg=formatGregorian(now);
-  const gpcNow=formatGPC(GPC.gpcFromDays(GPC.daysFromGregorian(now)));
-  const final=`📅 Gregorian: ${greg}\n🌐 GPC: ${gpcNow}\n\n${body}\n\n----------------\nSent in GPC Time`;
+  const label = showUTC ? 'UTC' : 'GPC';
+  const currentTime = showUTC
+    ? `${now.getUTCFullYear()}-${String(now.getUTCMonth()+1).padStart(2,'0')}-${String(now.getUTCDate()).padStart(2,'0')} ${String(now.getUTCHours()).padStart(2,'0')}:${String(now.getUTCMinutes()).padStart(2,'0')}Z`
+    : formatGPC(GPC.gpcFromDays(GPC.daysFromGregorian(now)));
+  const final = `📅 ${label}: ${currentTime}\n\n${body}\n\n----------------\n`;
+  const greg = formatGregorian(now);
   document.getElementById("preview").innerHTML=`
     <div class="mail">
       <div><strong>To:</strong> ${to}</div>
       <div><strong>Subject:</strong> ${subj}</div>
-      <div class="mail-meta"><span class="date-greg">${greg}</span><span class="date-gpc">${gpcNow}</span></div>
+      <div class="mail-meta"><span class="date-greg">${greg}</span><span class="date-gpc">${currentTime}</span></div>
       <pre style="background:#f4f4f4;padding:10px;border-radius:6px;white-space:pre-wrap;font-family:inherit;">${final}</pre>
     </div>`;
 }
@@ -884,7 +922,7 @@ async function loadProfile(){
 }
 
 /* ===============================
-   MODAL FUNCTIONS (using stored metadata, no Gregorian)
+   MODAL FUNCTIONS
 =============================== */
 function openEmailModal(messageId, folderId) {
   const modal = document.getElementById('emailModal');
@@ -895,12 +933,10 @@ function openEmailModal(messageId, folderId) {
   document.getElementById('modalDateZulu').textContent = '';
   document.getElementById('modalBody').innerHTML = '<div class="loading-text">Loading message...</div>';
 
-  // Try stored data first
   const stored = messageStore.get(String(messageId));
   if (stored) {
     renderMessageWithMeta(stored);
   } else {
-    // fallback – fetch full message
     fetchFullMessage(messageId, folderId);
   }
 }
@@ -909,7 +945,6 @@ function closeEmailModal() {
   document.getElementById('emailModal').classList.remove('active');
 }
 
-// Render modal using stored inbox metadata then fetch content
 function renderMessageWithMeta(msg) {
   if (!msg) {
     document.getElementById('modalBody').innerHTML = '<div class="error-message">Message not found.</div>';
@@ -938,15 +973,12 @@ function renderMessageWithMeta(msg) {
   document.getElementById('modalTo').textContent = 'To: ' + (to || 'Unknown');
 
   const dateObj = parseDate(msg);
-  // Zulu time only
   document.getElementById('modalDateZulu').textContent = formatZuluTime(dateObj);
 
-  // Show loading for content, then fetch
   document.getElementById('modalBody').innerHTML = '<div class="loading-text">Loading message body...</div>';
   fetchContentOnly(msg.messageId || msg.id, msg.folderId);
 }
 
-// Fetch only the content (HTML/plain) from API
 async function fetchContentOnly(messageId, folderId) {
   if (!messageId) {
     document.getElementById('modalBody').innerHTML = '<div class="error-message">No message ID.</div>';
@@ -986,7 +1018,6 @@ async function fetchContentOnly(messageId, folderId) {
   document.getElementById('modalBody').innerHTML = '<div class="error-message">Failed to load message content.</div>';
 }
 
-// ---- Keep existing fetchFullMessage for fallback (uses old renderMessage) ----
 async function fetchFullMessage(messageId, folderId) {
   const token = getToken();
   if (!token) return;
@@ -1065,7 +1096,6 @@ function copyErrorToClipboard() {
   });
 }
 
-// Render message from API fallback (with raw debug) – now uses Zulu time only
 function renderMessage(msg) {
   if (!msg) {
     document.getElementById('modalBody').innerHTML = '<div class="error-message">Message not found.</div>';
@@ -1100,7 +1130,6 @@ function renderMessage(msg) {
   if (to === 'Unknown' && msg.mailFields) to = msg.mailFields.toAddress || msg.mailFields.ToAddress || 'Unknown';
   document.getElementById('modalTo').textContent = 'To: ' + to;
 
-  // Zulu time only
   let dateObj = new Date();
   const rawDate = msg.date || msg.receivedDate || msg.receivedTime || msg.sentDate || msg.sentTime || msg.sentDateInGMT;
   if (rawDate) {
@@ -1161,20 +1190,16 @@ function toggleDOS() {
 }
 function toggleDOM() {
   if (domActive) {
-    // turn off DOM
     domActive = false;
     currentDOMFilter = null;
     clearDOMFilter();
   } else {
-    // turn on DOM
     domActive = true;
-    // Heptad filter (display + filter) must be off
     if (heptadActive) {
       heptadActive = false;
       currentDayFilter = null;
       clearDayFilter();
     }
-    // set default DOM day if none selected
     if (!currentDOMFilter) {
       const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date()));
       const md = getGPCMonthDay(todayGPC.doy);
@@ -1190,7 +1215,6 @@ function toggleDOM() {
 
 function toggleHeptad() {
   if (heptadActive) {
-    // Turn off both display and any day filter
     heptadActive = false;
     if (currentDayFilter !== null) {
       currentDayFilter = null;
@@ -1198,9 +1222,7 @@ function toggleHeptad() {
       document.querySelectorAll('.filter-day').forEach(td => td.classList.remove('active'));
     }
   } else {
-    // Turn on heptad display
     heptadActive = true;
-    // Activate the day filter ONLY if no other primary filter (DOY/DOS/DOM) is active
     if (!doyActive && !dosActive && !domActive) {
       if (!currentDayFilter) {
         const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date()));
@@ -1208,7 +1230,6 @@ function toggleHeptad() {
         setDayFilter(dayIdx);
       }
     }
-    // If DOM (or DOY/DOS) is active, do NOT touch currentDayFilter
   }
   syncModeAndHeptad();
   updateAllFilters();
@@ -1217,7 +1238,16 @@ function toggleHeptad() {
   fetchZohoInbox();
 }
 
-
+// NEW: UTC toggle
+function toggleTimeMode() {
+  showUTC = !showUTC;
+  const btn = document.getElementById('utc-toggle');
+  btn.textContent = showUTC ? 'UTC' : 'GPC';
+  btn.classList.toggle('active', showUTC);
+  updateTopBar();
+  fetchZohoInbox();  // refresh inbox list
+  // Preview remains as is (will update when preview is pressed)
+}
 
 function updateModeButtons() {
   document.querySelectorAll('[data-mode]').forEach(btn => {
@@ -1227,6 +1257,7 @@ function updateModeButtons() {
     else if (m === 'DOM') btn.classList.toggle('active', domActive);
   });
   document.getElementById('heptad-btn').classList.toggle('active', heptadActive);
+  document.getElementById('utc-toggle').classList.toggle('active', showUTC);
 }
 
 /* ===============================
@@ -1260,6 +1291,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.querySelector('[data-mode="DOS"]').addEventListener('click', toggleDOS);
   document.querySelector('[data-mode="DOM"]').addEventListener('click', toggleDOM);
   document.getElementById('heptad-btn').addEventListener('click', toggleHeptad);
+  document.getElementById('utc-toggle').addEventListener('click', toggleTimeMode);
   document.getElementById('prev-day-btn').addEventListener('click',prevDay);
   document.getElementById('next-day-btn').addEventListener('click',nextDay);
   document.querySelector('#filter-status .filter-remove').addEventListener('click',clearDayFilter);
