@@ -213,7 +213,16 @@
   }
   .loading-text { text-align: center; padding: 30px; color: #888; }
   
-  
+  .utc-pill {
+  color: #0b3c8c;
+  font-size: 1.02em;
+  font-weight: bold;
+  background: #e8f1ff;
+  padding: 4px 12px;
+  border-radius: 999px;
+  display: inline-block;
+  margin: 2px 0;
+}
 
   
 </style>
@@ -887,10 +896,9 @@ function renderInbox(messages) {
         <div class="mail-subject">${escapeHtml(sub)}</div>
         <div class="mail-sender">${escapeHtml(from)}</div>
         <div class="mail-meta">
-          <span class="date-greg">${timeMode === 'utc' ? displayTime : (timeMode === 'sun' ? '' : greg)}</span>
-
-          ${gpcHtml}
-        </div>
+  <span class="date-greg">${greg}</span>
+  ${getGPCBadgeHTML(date)}
+</div>
         <div class="mail-preview">${escapeHtml(snippet)}</div>
       </div>`;
   });
@@ -1057,23 +1065,23 @@ function getGPCBadgeHTML(dateObj) {
   if (!dateObj || isNaN(dateObj.getTime())) return '';
   
   if (timeMode === 'utc') {
-    return '';
+    const utcTime = formatUTCTime(dateObj);
+    return `<span class="date-gpc utc-pill">${utcTime}</span>`;
   }
   
   const displayTime = formatDisplayTime(dateObj);
   const zuluTime = formatZuluTime(dateObj);
   
   if (timeMode === 'sun') {
-    // Split date and time for SUN mode
     const parts = zuluTime.split(' ');
-    const datePart = parts.slice(0, 2).join(' '); // e.g. "🟤 6023.058"
-    const timePart = parts.slice(2).join(' '); // e.g. "10:15 Alpha"
+    const datePart = parts.slice(0, 2).join(' ');
+    const timePart = parts.slice(2).join(' ');
     return `
       <span class="date-gpc">${datePart}</span>
       <span class="sun-time">${timePart}</span>
     `;
   } else {
-    // Normal GPC mode
+    // GPC mode
     return `<span class="date-gpc">${displayTime}</span>`;
   }
 }
