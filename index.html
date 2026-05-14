@@ -718,7 +718,7 @@ function filterByDOYMonth(messages, month) {
 
 function applyFilters(messages) {
   let filtered = messages;
-  // Primary filters: only one can be active at a time (enforced in toggle functions)
+  // Only filter if a primary filter is active AND has a value set
   if (doyActive && currentDOYMonth !== null) {
     filtered = filterByDOYMonth(filtered, currentDOYMonth);
   } else if (dosActive && currentSeason !== null) {
@@ -726,7 +726,7 @@ function applyFilters(messages) {
   } else if (domActive && currentDOMFilter !== null) {
     filtered = filterByDOM(filtered, currentDOMFilter);
   }
-  // Heptad filter only when it's the only active filter (no primary)
+  // Heptad filter only when it's the only active filter
   if (heptadActive && currentDayFilter !== null && !doyActive && !dosActive && !domActive) {
     filtered = filterByDay(filtered, currentDayFilter);
   }
@@ -962,7 +962,7 @@ function renderMessage(msg) {
 }
 
 /* ===============================
-   TOGGLE HANDLERS (fixed exclusivity)
+   TOGGLE HANDLERS
 =============================== */
 function toggleDOY() {
   if (doyActive) {
@@ -970,23 +970,15 @@ function toggleDOY() {
     currentDOYMonth = null;
     clearDOYFilter();
   } else {
-    // Deactivate all other primary filters
+    doyActive = true;
     if (dosActive) {
       dosActive = false;
       currentSeason = null;
       clearDOSFilter();
     }
-    if (domActive) {
-      domActive = false;
-      currentDOMFilter = null;
-      clearDOMFilter();
-    }
-    doyActive = true;
     if (!currentDOYMonth) {
       const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date()));
       setDOYMonth(getGPCMonthFromDoy(todayGPC.doy));
-    } else {
-      setDOYMonth(currentDOYMonth);
     }
   }
   syncModeAndHeptad();
@@ -1002,24 +994,16 @@ function toggleDOS() {
     currentSeason = null;
     clearDOSFilter();
   } else {
-    // Deactivate other primary filters
+    dosActive = true;
     if (doyActive) {
       doyActive = false;
       currentDOYMonth = null;
       clearDOYFilter();
     }
-    if (domActive) {
-      domActive = false;
-      currentDOMFilter = null;
-      clearDOMFilter();
-    }
-    dosActive = true;
     if (!currentSeason) {
       const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date()));
       const s = Math.floor((todayGPC.doy-1)/91)+1;
       setSeason(s);
-    } else {
-      setSeason(currentSeason);
     }
   }
   syncModeAndHeptad();
@@ -1035,24 +1019,11 @@ function toggleDOM() {
     currentDOMFilter = null;
     clearDOMFilter();
   } else {
-    // Deactivate other primary filters
-    if (doyActive) {
-      doyActive = false;
-      currentDOYMonth = null;
-      clearDOYFilter();
-    }
-    if (dosActive) {
-      dosActive = false;
-      currentSeason = null;
-      clearDOSFilter();
-    }
     domActive = true;
     if (!currentDOMFilter) {
       const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date()));
       const md = getGPCMonthDay(todayGPC.doy);
       setDOMFilter(md.day);
-    } else {
-      setDOMFilter(currentDOMFilter);
     }
   }
   syncModeAndHeptad();
@@ -1068,29 +1039,11 @@ function toggleHeptad() {
     currentDayFilter = null;
     clearDayFilter();
   } else {
-    // Deactivate all primary filters
-    if (doyActive) {
-      doyActive = false;
-      currentDOYMonth = null;
-      clearDOYFilter();
-    }
-    if (dosActive) {
-      dosActive = false;
-      currentSeason = null;
-      clearDOSFilter();
-    }
-    if (domActive) {
-      domActive = false;
-      currentDOMFilter = null;
-      clearDOMFilter();
-    }
     heptadActive = true;
     if (!currentDayFilter) {
       const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date()));
       const dayIdx = GPC.getDayOfWeekIndex(todayGPC.doy);
       setDayFilter(dayIdx);
-    } else {
-      setDayFilter(currentDayFilter);
     }
   }
   syncModeAndHeptad();
