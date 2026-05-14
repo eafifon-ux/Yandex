@@ -161,7 +161,17 @@
   .modal-close:hover { color: #000; }
   .modal-header { margin-bottom: 15px; }
   .modal-subject { font-size: 1.3em; font-weight: bold; color: #1e6cff; margin: 0 0 6px; }
-  .modal-from, .modal-to, .modal-date { font-size: .9em; color: #555; margin-bottom: 2px; }
+  .modal-from, .modal-to { font-size: .9em; color: #555; margin-bottom: 2px; }
+  .modal-date-zulu {
+    font-size: .9em;
+    color: #555;
+    margin-bottom: 4px;
+    font-weight: bold;
+    background: #f0f5ff;
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+  }
   .modal-body {
     border-top: 1px solid #e0e0e0;
     padding-top: 15px;
@@ -352,7 +362,7 @@
         <h3 class="modal-subject" id="modalSubject">Subject</h3>
         <div class="modal-from" id="modalFrom">From:</div>
         <div class="modal-to" id="modalTo">To:</div>
-        <div class="modal-date" id="modalDate">Date:</div>
+        <div class="modal-date-zulu" id="modalDateZulu">Loading…</div>
       </div>
       <div class="modal-body" id="modalBody">
         <div class="loading-text">Loading message…</div>
@@ -488,6 +498,18 @@ function formatGPC(gpcDate) {
   } else {
     return `${emoji} ${year}.${core}`;
   }
+}
+
+// ----- ZULU TIME FORMATTING (no Gregorian) -----
+function formatZuluTime(dateObj) {
+  if (!dateObj || isNaN(dateObj.getTime())) return '';
+  const utc = new Date(dateObj.getTime());
+  const days = GPC.daysFromGregorian(utc);
+  const g = GPC.gpcFromDays(days);
+  const emoji = GPC.weekEmojis[(g.doy - 1) % 7];
+  const hh = String(utc.getUTCHours()).padStart(2,'0');
+  const mm = String(utc.getUTCMinutes()).padStart(2,'0');
+  return `${emoji} ${g.year}.${String(g.doy).padStart(3,'0')} ${hh}:${mm}Z`;
 }
 
 /* ===============================
@@ -851,7 +873,7 @@ async function loadProfile(){
 }
 
 /* ===============================
-   MODAL FUNCTIONS (using stored metadata)
+   MODAL FUNCTIONS (using stored metadata, no Gregorian)
 =============================== */
 function openEmailModal(messageId, folderId) {
   const modal = document.getElementById('emailModal');
@@ -859,7 +881,7 @@ function openEmailModal(messageId, folderId) {
   document.getElementById('modalSubject').textContent = 'Loading...';
   document.getElementById('modalFrom').textContent = '';
   document.getElementById('modalTo').textContent = '';
-  document.getElementById('modalDate').textContent = '';
+  document.getElementById('modalDateZulu').textContent = '';
   document.getElementById('modalBody').innerHTML = '<div class="loading-text">Loading message...</div>';
 
   // Try stored data first
@@ -905,7 +927,8 @@ function renderMessageWithMeta(msg) {
   document.getElementById('modalTo').textContent = 'To: ' + (to || 'Unknown');
 
   const dateObj = parseDate(msg);
-  document.getElementById('modalDate').textContent = 'Date: ' + dateObj.toLocaleString();
+  // Zulu time only
+  document.getElementById('modalDateZulu').textContent = formatZuluTime(dateObj);
 
   // Show loading for content, then fetch
   document.getElementById('modalBody').innerHTML = '<div class="loading-text">Loading message body...</div>';
@@ -1031,7 +1054,7 @@ function copyErrorToClipboard() {
   });
 }
 
-// Render message from API fallback (with raw debug)
+// Render message from API fallback (with raw debug) – now uses Zulu time only
 function renderMessage(msg) {
   if (!msg) {
     document.getElementById('modalBody').innerHTML = '<div class="error-message">Message not found.</div>';
@@ -1066,6 +1089,7 @@ function renderMessage(msg) {
   if (to === 'Unknown' && msg.mailFields) to = msg.mailFields.toAddress || msg.mailFields.ToAddress || 'Unknown';
   document.getElementById('modalTo').textContent = 'To: ' + to;
 
+  // Zulu time only
   let dateObj = new Date();
   const rawDate = msg.date || msg.receivedDate || msg.receivedTime || msg.sentDate || msg.sentTime || msg.sentDateInGMT;
   if (rawDate) {
@@ -1073,7 +1097,7 @@ function renderMessage(msg) {
     if (isNaN(dateObj.getTime()) && /^\d{13}$/.test(rawDate)) dateObj = new Date(parseInt(rawDate, 10));
     if (isNaN(dateObj.getTime())) { const parsed = Date.parse(rawDate); if (!isNaN(parsed)) dateObj = new Date(parsed); }
   }
-  document.getElementById('modalDate').textContent = 'Date: ' + dateObj.toLocaleString();
+  document.getElementById('modalDateZulu').textContent = formatZuluTime(dateObj);
 
   let htmlContent = msg.htmlContent || msg.content || msg.body || '';
   if (htmlContent) {
