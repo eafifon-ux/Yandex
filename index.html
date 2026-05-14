@@ -47,7 +47,9 @@
   }
   textarea { min-height:140px; resize:vertical; }
   .hidden { display:none; }
-  .error-message { color:#b00; background:#ffe0e0; padding:12px; border-radius:8px; margin:10px 0; }
+  .error-message { color:#b00; background:#ffe0e0; padding:12px; border-radius:8px; margin:10px 0; word-break:break-word; }
+  .copy-btn { background:#555; color:white; border:none; padding:4px 10px; border-radius:4px; cursor:pointer; margin-top:6px; }
+  .copy-btn:hover { background:#333; }
   #controls {
     display:flex; justify-content:center; gap:10px; margin-bottom:20px; flex-wrap:wrap;
   }
@@ -855,7 +857,7 @@ async function loadProfile(){
 }
 
 /* ===============================
-   OPEN / READ EMAIL MODAL
+   OPEN / READ EMAIL MODAL (FIXED)
 =============================== */
 function openEmailModal(messageId, folderId) {
   const modal = document.getElementById('emailModal');
@@ -886,28 +888,39 @@ async function fetchFullMessage(messageId, folderId) {
   const proxy = "https://corsproxy.io/?";
   let errors = [];
 
-  const urls = [
+  // Multiple URL patterns to try (Zoho API can vary)
+  const patterns = [
     `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}`,
-    folderId ? `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}` : null
+    `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}/content`,
+    `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}?includeContent=true`,
+    folderId ? `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}` : null,
+    folderId ? `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}/content` : null,
+    folderId ? `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}?includeContent=true` : null
   ].filter(Boolean);
 
-  for (const url of urls) {
+  for (const url of patterns) {
+    // 1. Try direct (might work if CORS policy changed)
     try {
-      const directRes = await fetch(url, { headers: { Authorization: "Zoho-oauthtoken " + token } }).catch(e => null);
+      const directRes = await fetch(url, { 
+        method: 'GET',
+        headers: { Authorization: "Zoho-oauthtoken " + token },
+        mode: 'cors'
+      }).catch(e => null);
       if (directRes && directRes.ok) {
         const data = await directRes.json();
         renderMessage(data.data);
         return;
       } else {
-        const status = directRes ? directRes.status : 'CORS error';
+        const status = directRes ? directRes.status : 'CORS blocked';
         let errorBody = '';
         if (directRes) try { errorBody = await directRes.text(); } catch(e) {}
-        errors.push(`Direct: ${url.replace(token, 'TOKEN')} → ${status} | Body: ${errorBody.substring(0, 300)}`);
+        errors.push(`Direct: ${url.replace(token, 'TOKEN')} → ${status} | ${errorBody.substring(0, 200)}`);
       }
     } catch(e) {
-      errors.push(`Direct error: ${e.message}`);
+      errors.push(`Direct error: ${url.replace(token, 'TOKEN')} → ${e.message}`);
     }
 
+    // 2. Try via proxy
     try {
       const res = await fetch(proxy + encodeURIComponent(url), {
         headers: { Authorization: "Zoho-oauthtoken " + token }
@@ -920,7 +933,7 @@ async function fetchFullMessage(messageId, folderId) {
         let errorBody = '';
         try { errorBody = await res.text(); } catch(e) {}
         const maskedUrl = url.replace(token, 'TOKEN');
-        errors.push(`Proxy: ${maskedUrl} → HTTP ${res.status} | Body: ${errorBody.substring(0, 300)}`);
+        errors.push(`Proxy: ${maskedUrl} → HTTP ${res.status} | Body: ${errorBody.substring(0, 200)}`);
       }
     } catch (e) {
       const maskedUrl = url.replace(token, 'TOKEN');
@@ -928,15 +941,35 @@ async function fetchFullMessage(messageId, folderId) {
     }
   }
 
+  // All attempts failed – show error with copy button
+  const errorText = errors.join('\n');
   document.getElementById('modalBody').innerHTML = `
     <div class="error-message">
-      <strong>Failed to load message</strong><br>
+      <strong>Failed to load message</strong><br><br>
+      <strong>Details:</strong><br>
       Account ID: ${accountId}<br>
       Message ID: ${messageId}<br>
       Folder ID: ${folderId || 'none'}<br><br>
-      <strong>Attempts (direct then proxy):</strong><br>
-      ${errors.join('<br>')}
+      <strong>Attempts:</strong><br>
+      <pre style="white-space:pre-wrap;font-size:0.85em;background:#ffe;padding:8px;border-radius:4px;">${escapeHtml(errorText)}</pre>
+      <button class="copy-btn" onclick="copyErrorToClipboard()">📋 Copy error details</button>
     </div>`;
+}
+
+function copyErrorToClipboard() {
+  const content = document.querySelector('#modalBody .error-message').innerText;
+  navigator.clipboard.writeText(content).then(() => {
+    alert('Copied to clipboard!');
+  }).catch(() => {
+    // Fallback
+    const textArea = document.createElement('textarea');
+    textArea.value = content;
+    document.body.appendChild(textArea);
+    textArea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textArea);
+    alert('Copied to clipboard!');
+  });
 }
 
 function renderMessage(msg) {
