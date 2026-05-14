@@ -1031,10 +1031,10 @@ function renderMessageWithMeta(msg) {
     document.getElementById('modalBody').innerHTML = '<div class="error-message">Message not found.</div>';
     return;
   }
-
+  
   const subject = msg.subject || '(No subject)';
   document.getElementById('modalSubject').textContent = subject;
-
+  
   let from = 'Unknown';
   const fromField = msg.fromAddress || msg.sender || msg.senderAddress || msg.from;
   if (fromField) {
@@ -1042,7 +1042,7 @@ function renderMessageWithMeta(msg) {
     else if (typeof fromField === 'object') from = fromField.emailAddress || fromField.name || JSON.stringify(fromField);
   }
   document.getElementById('modalFrom').textContent = 'From: ' + from;
-
+  
   let to = '';
   const toField = msg.toAddress || msg.recipients || msg.to;
   if (toField) {
@@ -1052,21 +1052,15 @@ function renderMessageWithMeta(msg) {
     } else if (typeof toField === 'object') to = toField.emailAddress || toField.name || JSON.stringify(toField);
   }
   document.getElementById('modalTo').textContent = 'To: ' + (to || 'Unknown');
-
+  
   const dateObj = parseDate(msg);
   const modalEl = document.getElementById('modalDateZulu');
-if (timeMode === 'sun') {
-  const full = formatFullGPCWithTime(dateObj);          // assumes you have this function
-  const parts = full.split(' ');
-  const datePart = parts[0] + ' ' + parts[1];
-  const timePart = parts.slice(2).join(' ');
-  modalEl.innerHTML = `<span class="date-gpc">${datePart}</span><span class="sun-time">${timePart}</span>`;
-} else {
-  modalEl.textContent = formatZuluTime(dateObj);
-}
-
-document.getElementById('modalBody').innerHTML = '<div class="loading-text">Loading message body...</div>';
-fetchContentOnly(msg.messageId || msg.id, msg.folderId);
+  
+  // Make modal look like SUN mode (blue date + orange time) in ALL modes
+  modalEl.innerHTML = getGPCBadgeHTML(dateObj);
+  
+  document.getElementById('modalBody').innerHTML = '<div class="loading-text">Loading message body...</div>';
+  fetchContentOnly(msg.messageId || msg.id, msg.folderId);
 }
 
 
