@@ -162,24 +162,18 @@
   .modal-subject { font-size: 1.3em; font-weight: bold; color: #1e6cff; margin: 0 0 6px; }
   .modal-from, .modal-to, .modal-date { font-size: .9em; color: #555; margin-bottom: 2px; }
   .modal-body {
-    border-top: 1px solid #e0e0e0;
-    padding-top: 15px;
-    margin-top: 10px;
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-    word-break: break-word;
-    line-height: 1.6;
-    white-space: pre-wrap;
-    font-family: inherit;
-    overflow-x: hidden;
-  }
-.modal-box {
-  overflow-x: hidden;  /* prevent horizontal scroll on the whole modal */
+  border-top: 1px solid #e0e0e0;
+  padding-top: 15px;
+  margin-top: 10px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-word;        /* ← add this */
+  line-height: 1.6;
+  white-space: pre-wrap;
+  font-family: inherit;
+  overflow-x: hidden;            /* ← add this */
 }
-.modal-body {
-  overflow-x: hidden;  /* also on the body */
-  word-break: break-word; /* force long strings to break */
-}
+
 
   .loading-text { text-align: center; padding: 30px; color: #888; }
 </style>
@@ -980,30 +974,43 @@ function renderMessage(msg) {
     document.getElementById('modalBody').innerHTML = `<div class="error-message">Message not found.</div>`;
     return;
   }
-  
-  // Field extraction
+
+  // ----- Subject -----
   const subject = msg.subject || msg.Subject || msg.emailSubject || msg.title || '(No subject)';
-  const from = msg.fromAddress || msg.FromAddress || msg.sender || msg.senderAddress || msg.from || 'Unknown';
-  const to = msg.toAddress || msg.ToAddress || msg.recipients || msg.to || 'Unknown';
-  
-  // Date handling
-  let dateObj = new Date();
-  const rawDate = msg.date || msg.receivedDate || msg.receivedTime || msg.sentDate || msg.sentTime;
-  if (rawDate) {
-    dateObj = new Date(rawDate);
-    if (isNaN(dateObj.getTime()) && /^\d{13}$/.test(rawDate)) {
-      dateObj = new Date(parseInt(rawDate, 10));
+  document.getElementById('modalSubject').textContent = subject;
+
+  // ----- From (handle both string and object) -----
+  let from = 'Unknown';
+  const fromField = msg.fromAddress || msg.FromAddress || msg.sender || msg.senderAddress || msg.from;
+  if (fromField) {
+    if (typeof fromField === 'string') from = fromField;
+    else if (typeof fromField === 'object') from = fromField.emailAddress || fromField.name || JSON.stringify(fromField);
+  }
+  document.getElementById('modalFrom').textContent = 'From: ' + from;
+
+  // ----- To (handle string, array, object) -----
+  let to = 'Unknown';
+  const toField = msg.toAddress || msg.ToAddress || msg.recipients || msg.to;
+  if (toField) {
+    if (typeof toField === 'string') to = toField;
+    else if (Array.isArray(toField)) {
+      to = toField.map(item => {
+        if (typeof item === 'string') return item;
+        if (typeof item === 'object') return item.emailAddress || item.name || JSON.stringify(item);
+        return '';
+      }).filter(Boolean).join(', ');
+    } else if (typeof toField === 'object') {
+      to = toField.emailAddress || toField.name || JSON.stringify(toField);
     }
   }
-  
-  document.getElementById('modalSubject').textContent = subject;
-  document.getElementById('modalFrom').textContent = 'From: ' + from;
   document.getElementById('modalTo').textContent = 'To: ' + to;
+
+  // ----- Date (reuse inbox parsing) -----
+  const dateObj = parseDate(msg);
   document.getElementById('modalDate').textContent = 'Date: ' + dateObj.toLocaleString();
-  
-  // ──────── IMPROVED HTML RENDERING ────────
+
+  // ----- Content (preserve HTML nicely) -----
   let htmlContent = '';
-  
   if (msg.htmlContent && typeof msg.htmlContent === 'string') {
     htmlContent = msg.htmlContent;
   } else if (msg.content && typeof msg.content === 'string') {
@@ -1011,28 +1018,21 @@ function renderMessage(msg) {
   } else if (msg.body && typeof msg.body === 'string') {
     htmlContent = msg.body;
   }
-  
+
   if (htmlContent) {
-    // Basic security sanitization
+    // Sanitize: remove scripts and inline event handlers
     htmlContent = htmlContent
       .replace(/<script[\s\S]*?<\/script>/gi, '')
       .replace(/<style[\s\S]*?<\/style>/gi, '')
       .replace(/on\w+=["'][^"']*["']/gi, '');
-    
-    document.getElementById('modalBody').innerHTML = `
-      <div style="line-height:1.65; font-size:15.2px; padding:8px 4px;">
-        ${htmlContent}
-      </div>`;
-  }
-  else {
-    // Plain text fallback
+    document.getElementById('modalBody').innerHTML = `<div style="line-height:1.65; font-size:15.2px; padding:8px 4px;">${htmlContent}</div>`;
+  } else {
+    // Plain text fallback with nice styling
     const plainText = msg.content || msg.textContent || msg.summary || msg.snippet || '(No content)';
-    document.getElementById('modalBody').innerHTML = `
-      <pre style="white-space:pre-wrap; font-family:inherit; margin:0; font-size:0.95em; line-height:1.6; background:#f8f9fa; padding:15px; border-radius:8px;">
-        ${escapeHtml(plainText)}
-      </pre>`;
+    document.getElementById('modalBody').innerHTML = `<pre style="white-space:pre-wrap; font-family:inherit; margin:0; font-size:0.95em; line-height:1.6; background:#f8f9fa; padding:15px; border-radius:8px;">${escapeHtml(plainText)}</pre>`;
   }
 }
+
 
 /* ===============================
    TOGGLE HANDLERS
