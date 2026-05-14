@@ -357,7 +357,7 @@
 
 <script>
 /* ===============================
-   GPC ENGINE (unchanged)
+   GPC ENGINE
 =============================== */
 const GPC = {
   epochUTC: Date.UTC(1982, 2, 24),
@@ -856,7 +856,7 @@ async function loadProfile(){
 }
 
 /* ===============================
-   OPEN / READ EMAIL MODAL (FIXED)
+   OPEN / READ EMAIL MODAL
 =============================== */
 function openEmailModal(messageId, folderId) {
   const modal = document.getElementById('emailModal');
@@ -1004,9 +1004,12 @@ function renderMessage(msg) {
     const doc = parser.parseFromString(msg.htmlContent, 'text/html');
     // Remove script/style/img
     doc.querySelectorAll('script, style, img, meta, link').forEach(el => el.remove());
-    // Replace br, p, div, tr, li with newlines
-    doc.body.querySelectorAll('br, p, div, tr, li, h1, h2, h3, h4, h5, h6').forEach(el => {
-      el.insertAdjacentText('afterend', '\n');
+    // Replace block-level tags with newlines
+    const blockTags = ['br','p','div','tr','li','h1','h2','h3','h4','h5','h6','blockquote','pre','table','td','th','thead','tbody','tfoot','ul','ol','dl','dt','dd','header','footer','section','article','nav','aside','figure','figcaption','details','summary','hr','form','fieldset','legend','center'];
+    blockTags.forEach(tag => {
+      doc.body.querySelectorAll(tag).forEach(el => {
+        el.insertAdjacentText('afterend', '\n');
+      });
     });
     // Get text content
     plainText = doc.body.textContent || '';
