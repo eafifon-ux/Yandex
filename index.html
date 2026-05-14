@@ -616,21 +616,18 @@ function getGPCBadgeHTML(dateObj) {
     return `<span class="date-gpc utc-pill">${utcTime}</span>`;
   }
   
-  const displayTime = formatDisplayTime(dateObj);
-  const zuluTime = formatZuluTime(dateObj);
-  
   if (timeMode === 'sun') {
-    const parts = zuluTime.split(' ');
-    const datePart = parts.slice(0, 2).join(' ');
-    const timePart = parts.slice(2).join(' ');
+    const gpct = getGPCTime(dateObj);
+    const timeStr = String(gpct.hour).padStart(2, '0') + ':' + String(gpct.minute).padStart(2, '0');
+    const period = gpct.period;
     return `
-      <span class="date-gpc">${datePart}</span>
-      <span class="sun-time">${timePart}</span>
+      <span class="date-gpc">${formatDisplayTime(dateObj)}</span>
+      <span class="sun-time">${timeStr} ${period}</span>
     `;
-  } else {
-    // GPC mode
-    return `<span cla:s:s="date-gpc">${displayTime}</span>`;
   }
+  
+  // Default GPC mode
+  return `<span class="date-gpc">${formatDisplayTime(dateObj)}</span>`;
 }
 
 /* ===============================
@@ -888,31 +885,17 @@ function renderInbox(messages) {
     return;
   }
   let html = `<p>Showing ${messages.length} messages:</p>`;
+  
   messages.forEach(msg => {
     const messageId = msg.messageId || msg.id;
     if (messageId) messageStore.set(String(messageId), msg);
-
+    
     const sub = msg.subject || "(No subject)";
     const from = msg.fromAddress || msg.sender || "Unknown";
     const date = parseDate(msg);
     const greg = formatGregorian(date);
-    const displayTime = (timeMode === 'gpc') ? formatDisplayTime(date) : formatZuluTime(date);
     const snippet = msg.summary || msg.snippet || "";
-
-    // --- NEW: Build the GPC/SUN time HTML correctly ---
-    let gpcHtml = '';
-    if (timeMode === 'utc') {
-      gpcHtml = '';
-    } else if (timeMode === 'sun') {
-      const parts = displayTime.split(' ');
-      const datePart = parts[0] + ' ' + parts[1];       // "🟤 6023.058"
-      const timePart = parts.slice(2).join(' ');         // "10:15 Alpha"
-      gpcHtml = `<span class="date-gpc">${datePart}</span><span class="sun-time">${timePart}</span>`;
-    } else {
-      // GPC mode (date only)
-      gpcHtml = `<span class="date-gpc">${displayTime}</span>`;
-    }
-
+    
     html += `
       <div class="mail"
            data-message-id="${escapeHtml(messageId || '')}"
@@ -921,9 +904,9 @@ function renderInbox(messages) {
         <div class="mail-subject">${escapeHtml(sub)}</div>
         <div class="mail-sender">${escapeHtml(from)}</div>
         <div class="mail-meta">
-  <span class="date-greg">${greg}</span>
-  ${getGPCBadgeHTML(date)}
-</div>
+          <span class="date-greg">${greg}</span>
+          ${getGPCBadgeHTML(date)}
+        </div>
         <div class="mail-preview">${escapeHtml(snippet)}</div>
       </div>`;
   });
@@ -973,7 +956,7 @@ function previewMail(){
   const label = timeMode === 'utc' ? 'UTC' : (timeMode === 'sun' ? 'SUN' : 'GPC');
   const final = `📅 ${label}: ${currentTime}\n\n${body}\n\n----------------\n`;
   const greg = formatGregorian(now);
-  document.getElementById("preview").// Inside renderInbox(), replace the html += ` ... ` part with this:
+
 
 html += `
   <div class="mail" data-message-id="\( {escapeHtml(messageId || '')}" data-folder-id=" \){escapeHtml(msg.folderId || '')}" style="cursor:pointer;">
