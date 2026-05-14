@@ -356,7 +356,7 @@
 
 <script>
 /* ===============================
-   GPC ENGINE
+   GPC ENGINE (unchanged)
 =============================== */
 const GPC = {
   epochUTC: Date.UTC(1982, 2, 24),
@@ -881,31 +881,24 @@ async function fetchFullMessage(messageId, folderId) {
   if (!accountId) return;
 
   if (!messageId) {
-    document.getElementById('modalBody').innerHTML = `<div class="error-message">No message ID found. Please reload the inbox.</div>`;
+    document.getElementById('modalBody').innerHTML = `<div class="error-message">No message ID found.</div>`;
     return;
   }
 
   const proxy = "https://corsproxy.io/?";
   let errors = [];
 
-  // Multiple URL patterns to try (Zoho API can vary)
   const patterns = [
     `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}`,
     `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}/content`,
-    `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}?includeContent=true`,
     folderId ? `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}` : null,
-    folderId ? `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}/content` : null,
-    folderId ? `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}?includeContent=true` : null
+    folderId ? `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}/content` : null
   ].filter(Boolean);
 
   for (const url of patterns) {
-    // 1. Try direct (might work if CORS policy changed)
+    // direct
     try {
-      const directRes = await fetch(url, { 
-        method: 'GET',
-        headers: { Authorization: "Zoho-oauthtoken " + token },
-        mode: 'cors'
-      }).catch(e => null);
+      const directRes = await fetch(url, { headers: { Authorization: "Zoho-oauthtoken " + token } }).catch(e => null);
       if (directRes && directRes.ok) {
         const data = await directRes.json();
         renderMessage(data.data);
@@ -920,7 +913,7 @@ async function fetchFullMessage(messageId, folderId) {
       errors.push(`Direct error: ${url.replace(token, 'TOKEN')} → ${e.message}`);
     }
 
-    // 2. Try via proxy
+    // proxy
     try {
       const res = await fetch(proxy + encodeURIComponent(url), {
         headers: { Authorization: "Zoho-oauthtoken " + token }
@@ -941,12 +934,11 @@ async function fetchFullMessage(messageId, folderId) {
     }
   }
 
-  // All attempts failed – show error with copy button
+  // All failed – show error with copy
   const errorText = errors.join('\n');
   document.getElementById('modalBody').innerHTML = `
     <div class="error-message">
       <strong>Failed to load message</strong><br><br>
-      <strong>Details:</strong><br>
       Account ID: ${accountId}<br>
       Message ID: ${messageId}<br>
       Folder ID: ${folderId || 'none'}<br><br>
@@ -961,7 +953,6 @@ function copyErrorToClipboard() {
   navigator.clipboard.writeText(content).then(() => {
     alert('Copied to clipboard!');
   }).catch(() => {
-    // Fallback
     const textArea = document.createElement('textarea');
     textArea.value = content;
     document.body.appendChild(textArea);
@@ -972,25 +963,73 @@ function copyErrorToClipboard() {
   });
 }
 
+/* ===============================
+   renderMessage – robust field extraction & HTML cleanup
+=============================== */
 function renderMessage(msg) {
   if (!msg) {
     document.getElementById('modalBody').innerHTML = `<div class="error-message">Message not found.</div>`;
     return;
   }
-  document.getElementById('modalSubject').textContent = msg.subject || '(No subject)';
-  document.getElementById('modalFrom').textContent = 'From: ' + (msg.fromAddress || 'Unknown');
-  document.getElementById('modalTo').textContent = 'To: ' + (msg.toAddress || 'Unknown');
+
+  // Field extraction (handle nested data)
+  const subject = msg.subject || msg.Subject || msg.emailSubject || '(No subject)';
+  const from = msg.fromAddress || msg.FromAddress || msg.sender || 'Unknown';
+  const to = msg.toAddress || msg.ToAddress || msg.recipients || 'Unknown';
   const date = parseDate(msg);
+
+  document.getElementById('modalSubject').textContent = subject;
+  document.getElementById('modalFrom').textContent = 'From: ' + from;
+  document.getElementById('modalTo').textContent = 'To: ' + to;
   document.getElementById('modalDate').textContent = 'Date: ' + date.toLocaleString();
 
+  // Body: prefer plain text, then HTML cleaned
   let bodyHtml = '';
-  if (msg.htmlContent) {
-    bodyHtml = msg.htmlContent;
-  } else if (msg.content) {
+  if (msg.content) {
     bodyHtml = `<pre style="white-space:pre-wrap;font-family:inherit;margin:0;background:none;font-size:0.95em;">${escapeHtml(msg.content)}</pre>`;
+  } else if (msg.htmlContent) {
+    // sanitize: remove img tags, break long lines, strip dangerous tags
+    let cleaned = msg.htmlContent
+      .replace(/<img[^>]*>/gi, '[Image removed]')
+      .replace(/<script[^>]*>.*?<\/script>/gsi, '')
+      .replace(/<style[^>]*>.*?<\/style>/gsi, '')
+      .replace(/<link[^>]*>/gi, '')
+      .replace(/<meta[^>]*>/gi, '')
+      .replace(/on\w+="[^"]*"/gi, '')
+      .replace(/style\s*=\s*"[^"]*"/gi, '');
+
+    // Optionally strip all tags except a few safe ones
+    // For readability, let's just keep basic formatting:
+    // Actually better: use a DOMParser to extract text
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(cleaned, 'text/html');
+    // Remove all images (already done) and convert to plain text with line breaks
+    // But we want some structure – keep <p>, <br>, <table>, <a> etc.
+    // Remove all attributes except href
+    const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_ELEMENT, null, false);
+    let node;
+    while (node = walker.nextNode()) {
+      if (node.tagName === 'A') {
+        // keep href only
+        const href = node.getAttribute('href');
+        node.removeAttribute('style');
+        node.removeAttribute('class');
+        node.removeAttribute('id');
+        node.removeAttribute('target');
+        node.removeAttribute('rel');
+        if (href) node.setAttribute('href', href);
+      } else {
+        // remove all attributes
+        while (node.attributes.length > 0) node.removeAttribute(node.attributes[0].name);
+      }
+    }
+    // Also remove empty tags
+    // Set innerHTML
+    bodyHtml = doc.body.innerHTML;
   } else {
     bodyHtml = '<p><em>No content</em></p>';
   }
+
   document.getElementById('modalBody').innerHTML = bodyHtml;
 }
 
