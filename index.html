@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Shoonya Mail + Matka Filters</title>
 <style>
+  /* … your existing CSS, unchanged … */
   body {
     margin:0; font-family: Arial, sans-serif; background:#f5f7fb; padding:20px;
     color:#123;
@@ -672,9 +673,18 @@ function updateFilterTableUI(){
 /* ===============================
    APPLY FILTERS & INBOX
 =============================== */
+function parseDate(msg) {
+  let raw = msg.date || msg.receivedTime || msg.receivedDate || msg.sentDate;
+  if (!raw) return new Date();
+  if (typeof raw === 'number') return new Date(raw);
+  const d = new Date(raw);
+  if (!isNaN(d.getTime())) return d;
+  return new Date(raw.replace(/(\+|-)\d{2}:?\d{2}$/, ''));
+}
+
 function filterByDay(messages, dayIndex) {
   return messages.filter(m=>{
-    const d=new Date(m.date||m.receivedDate||Date.now());
+    const d = parseDate(m);
     const days=GPC.daysFromGregorian(d);
     const gp=GPC.gpcFromDays(days);
     return GPC.getDayOfWeekIndex(gp.doy)===dayIndex;
@@ -682,7 +692,7 @@ function filterByDay(messages, dayIndex) {
 }
 function filterByDOM(messages, dayOfMonth) {
   return messages.filter(m=>{
-    const d=new Date(m.date||m.receivedDate||Date.now());
+    const d = parseDate(m);
     const days=GPC.daysFromGregorian(d);
     const gp=GPC.gpcFromDays(days);
     const md=getGPCMonthDay(gp.doy);
@@ -691,7 +701,7 @@ function filterByDOM(messages, dayOfMonth) {
 }
 function filterBySeason(messages, season) {
   return messages.filter(m=>{
-    const d=new Date(m.date||m.receivedDate||Date.now());
+    const d = parseDate(m);
     const days=GPC.daysFromGregorian(d);
     const gp=GPC.gpcFromDays(days);
     const s=Math.floor((gp.doy-1)/91)+1;
@@ -700,7 +710,7 @@ function filterBySeason(messages, season) {
 }
 function filterByDOYMonth(messages, month) {
   return messages.filter(m=>{
-    const d=new Date(m.date||m.receivedDate||Date.now());
+    const d = parseDate(m);
     const days=GPC.daysFromGregorian(d);
     const gp=GPC.gpcFromDays(days);
     return getGPCMonthFromDoy(gp.doy)===month;
@@ -709,7 +719,6 @@ function filterByDOYMonth(messages, month) {
 
 function applyFilters(messages) {
   let filtered = messages;
-  // Primary filters (DOY, DOS, DOM) always apply when active
   if (doyActive && currentDOYMonth !== null) {
     filtered = filterByDOYMonth(filtered, currentDOYMonth);
   } else if (dosActive && currentSeason !== null) {
@@ -717,13 +726,11 @@ function applyFilters(messages) {
   } else if (domActive && currentDOMFilter !== null) {
     filtered = filterByDOM(filtered, currentDOMFilter);
   }
-  // Heptad filter only applies when it's the *only* active filter
   if (heptadActive && currentDayFilter !== null && !doyActive && !dosActive && !domActive) {
     filtered = filterByDay(filtered, currentDayFilter);
   }
   return filtered;
 }
-
 
 function renderInbox(messages) {
   const inboxDiv = document.getElementById("inbox");
@@ -736,11 +743,9 @@ function renderInbox(messages) {
     const sub = msg.subject || "(No subject)";
     const from = msg.fromAddress || msg.sender || "Unknown";
     const date = parseDate(msg);
-
     const greg = formatGregorian(date);
     const gpc = formatGPC(GPC.gpcFromDays(GPC.daysFromGregorian(date)));
     const snippet = msg.summary || msg.snippet || "";
-    // Store both messageId and folderId
     html += `
       <div class="mail" 
            data-message-id="${escapeHtml(msg.messageId || '')}" 
@@ -758,19 +763,8 @@ function renderInbox(messages) {
   inboxDiv.innerHTML = html;
 }
 
-
 function formatGregorian(d){const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${dd}`;}
 function escapeHtml(t){const d=document.createElement('div'); d.textContent=t; return d.innerHTML;}
-
-function parseDate(msg) {
-  let raw = msg.date || msg.receivedTime || msg.receivedDate || msg.sentDate;
-  if (!raw) return new Date();
-  if (typeof raw === 'number') return new Date(raw);
-  const d = new Date(raw);
-  if (!isNaN(d.getTime())) return d;
-  return new Date(raw.replace(/(\+|-)\d{2}:?\d{2}$/, ''));
-}
-
 
 async function fetchZohoInbox() {
   const token=getToken();
@@ -897,7 +891,6 @@ async function fetchFullMessage(messageId, folderId) {
   ].filter(Boolean);
 
   for (const url of urls) {
-    // 1) Try direct fetch (will likely fail with CORS, but shows if endpoint is valid)
     try {
       const directRes = await fetch(url, { headers: { Authorization: "Zoho-oauthtoken " + token } }).catch(e => null);
       if (directRes && directRes.ok) {
@@ -914,7 +907,6 @@ async function fetchFullMessage(messageId, folderId) {
       errors.push(`Direct error: ${e.message}`);
     }
 
-    // 2) Try with proxy
     try {
       const res = await fetch(proxy + encodeURIComponent(url), {
         headers: { Authorization: "Zoho-oauthtoken " + token }
@@ -946,8 +938,6 @@ async function fetchFullMessage(messageId, folderId) {
     </div>`;
 }
 
-
-// Helper to render the message content in modal
 function renderMessage(msg) {
   if (!msg) {
     document.getElementById('modalBody').innerHTML = `<div class="error-message">Message not found.</div>`;
@@ -957,7 +947,6 @@ function renderMessage(msg) {
   document.getElementById('modalFrom').textContent = 'From: ' + (msg.fromAddress || 'Unknown');
   document.getElementById('modalTo').textContent = 'To: ' + (msg.toAddress || 'Unknown');
   const date = parseDate(msg);
-
   document.getElementById('modalDate').textContent = 'Date: ' + date.toLocaleString();
 
   let bodyHtml = '';
@@ -970,7 +959,6 @@ function renderMessage(msg) {
   }
   document.getElementById('modalBody').innerHTML = bodyHtml;
 }
-
 
 /* ===============================
    TOGGLE HANDLERS
@@ -1044,7 +1032,6 @@ function toggleDOM() {
   fetchZohoInbox();
 }
 
-
 function toggleHeptad() {
   if (heptadActive) {
     heptadActive = false;
@@ -1064,7 +1051,6 @@ function toggleHeptad() {
   updateModeButtons();
   fetchZohoInbox();
 }
-
 
 function updateModeButtons() {
   document.querySelectorAll('[data-mode]').forEach(btn => {
@@ -1137,7 +1123,6 @@ document.addEventListener('DOMContentLoaded',()=>{
     td.addEventListener('click',()=>setDOYMonth(Number(td.dataset.month)));
   });
 
-  // Inbox click delegation – now passes folderId
   document.getElementById('inbox').addEventListener('click', function(e) {
     const mailDiv = e.target.closest('.mail');
     if (!mailDiv) return;
@@ -1148,8 +1133,6 @@ document.addEventListener('DOMContentLoaded',()=>{
     }
   });
 
-
-  // Modal close events
   document.getElementById('modalCloseBtn').addEventListener('click', closeEmailModal);
   document.getElementById('emailModal').addEventListener('click', function(e) {
     if (e.target === this) closeEmailModal();
