@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Shoonya Mail + Matka Filters</title>
+<title>Shoonya Mail + Heptad Fix</title>
 <style>
   body {
     margin:0; font-family: Arial, sans-serif; background:#f5f7fb; padding:20px;
@@ -19,6 +19,7 @@
     margin-top:12px; font-size:1.4em; font-weight:bold; padding:10px 15px;
     background:rgba(30,108,255,.08); border-radius:10px;
     border:1px solid rgba(30,108,255,.18); display:inline-block;
+    font-variant-numeric: tabular-nums; letter-spacing:.5px;
   }
   .container { max-width:1000px; margin:0 auto; }
   .card {
@@ -59,8 +60,8 @@
   }
   #controls button:hover { background:#f0f5ff; }
   #controls button.active { background:#1e6cff; color:white; border-color:#1e6cff; }
-  #controls button.toggle { background:#f0f5ff; border:2px solid #aac7ff; }
-  #controls button.toggle.active { background:#555; color:white; border-color:#555; }
+  #controls button.triple { background:#f0f5ff; border:2px solid #aac7ff; min-width: 60px; }
+  #controls button.triple.active { background:#555; color:white; border-color:#555; }
   #week-filter-container, #dom-filter-container, #dos-filter-container, #doy-filter-container {
     text-align:center; margin-bottom:20px; padding:15px; background:white;
     border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,.08); display:none;
@@ -122,7 +123,6 @@
   .date-greg { color:#999; font-size:.82em; }
   .date-gpc { color:#0b3c8c; font-size:1.05em; font-weight:bold; background:#e8f1ff; padding:2px 12px; border-radius:999px; }
 
-  /* ── Email Reader Modal ── */
   .modal-overlay {
     display: none;
     position: fixed;
@@ -209,16 +209,16 @@
     </div>
   </div>
 
-  <!-- FILTER CONTROLS + UTC TOGGLE -->
+  <!-- FILTER CONTROLS + triple time toggle -->
   <div id="controls">
     <button data-mode="DOY" class="active">DOY</button>
     <button data-mode="DOS">DOS</button>
     <button data-mode="DOM" id="dom-btn">DOM</button>
     <button id="heptad-btn">Heptad</button>
-    <button id="utc-toggle" class="toggle">GPC</button>
+    <button id="time-toggle" class="triple active">GPC</button>
   </div>
 
-  <!-- Week Day Filter -->
+  <!-- Week Day Filter (heptad) -->
   <div id="week-filter-container">
     <h4>Week Day Filter</h4>
     <table class="filter-table">
@@ -340,7 +340,7 @@
     <input id="to" placeholder="Recipient">
     <input id="subject" placeholder="Subject">
     <textarea id="body" placeholder="Write your message..."></textarea>
-    <button class="secondary" onclick="previewMail()" style="margin-top:12px;">Preview GPC Layer</button>
+    <button class="secondary" onclick="previewMail()" style="margin-top:12px;">Preview Time Layer</button>
     <div id="preview" style="margin-top:20px;"></div>
   </div>
 
@@ -439,7 +439,7 @@ let doyActive = true;
 let dosActive = false;
 let domActive = false;
 let heptadActive = false;
-let showUTC = false;
+let timeMode = 'gpc';  // 'gpc', 'utc', 'sun'
 
 function getMode() {
   if (doyActive) return 'DOY';
@@ -480,55 +480,25 @@ function getGPCMonthDay(gpcDoy) {
   return {month:12,day:r};
 }
 
-// ----- New GPC time helpers (based on Metro GPC) -----
-// ----- Corrected GPC time helpers (mirrors Metro GPC exactly) -----
+// ----- Time helpers (only used in SUN mode) -----
 function getGPCTime(dateObj) {
   const localHours = dateObj.getHours();
   const localMinutes = dateObj.getMinutes();
-  const gpcHour = (localHours + 18) % 24;           // GPC clock = local + 18
-  const gpcMinute = localMinutes;                   // same minute
+  const gpcHour = (localHours + 18) % 24;           // GPC clock
+  const gpcMinute = localMinutes;
   const totalLocalMinutes = localHours * 60 + localMinutes;
   let period;
-  if (totalLocalMinutes <= 360) period = 'Napa';        // 00:00‑06:00
-  else if (totalLocalMinutes <= 720) period = 'Mike';   // 06:01‑12:00
-  else if (totalLocalMinutes <= 1080) period = 'Alpha'; // 12:01‑18:00
-  else period = 'Echo';                                  // 18:01‑23:59
-  return { gpcHour, gpcMinute, period };
+  if (totalLocalMinutes <= 360) period = 'Napa';
+  else if (totalLocalMinutes <= 720) period = 'Mike';
+  else if (totalLocalMinutes <= 1080) period = 'Alpha';
+  else period = 'Echo';
+  return { hour: gpcHour, minute: gpcMinute, period };
 }
 
-function formatGPCWithTime(dateObj) {
-  if (!dateObj || isNaN(dateObj.getTime())) return '';
-  const days = GPC.daysFromGregorian(dateObj);
-  const g = GPC.gpcFromDays(days);
-  const emoji = GPC.weekEmojis[(g.doy - 1) % 7];
-  const gpct = getGPCTime(dateObj);
-  const timeStr = String(gpct.gpcHour).padStart(2,'0') + ':' + String(gpct.gpcMinute).padStart(2,'0');
-  // Display: emoji year.doy HH:MM period
-  return `${emoji} ${g.year}.${String(g.doy).padStart(3,'0')} ${timeStr} ${gpct.period}`;
-}
-
-
-// ----- Display formatter (respects showUTC toggle) -----
-function formatDisplayTime(dateObj) {
-  if (!dateObj || isNaN(dateObj.getTime())) return '';
-  if (showUTC) {
-    return dateObj.toISOString().slice(0,16).replace('T', ' ') + 'Z';
-  } else {
-    return formatGPCWithTime(dateObj);
-  }
-}
-
-// All old formatZuluTime uses are replaced by formatDisplayTime
-function formatZuluTime(dateObj) {
-  return formatDisplayTime(dateObj);
-}
-
-// ----- Old formatGPC kept for fallback (no time) -----
+// ----- GPC date formatter (used in GPC mode) -----
 function formatGPC(gpcDate) {
   const {year,doy}=gpcDate;
   const emoji=GPC.weekEmojis[(doy-1)%7];
-  const h=GPC.heptads[doy]||{suit:0x2663,week:1};
-  const suit=String.fromCodePoint(h.suit);
   let core="";
   if(mode==="DOY") core=String(doy).padStart(3,"0");
   else if(mode==="DOS") {
@@ -542,17 +512,53 @@ function formatGPC(gpcDate) {
     core=String(doy).padStart(3,"0");
   }
   if(heptad) {
+    const h=GPC.heptads[doy]||{suit:0x2663,week:1};
+    const suit=String.fromCodePoint(h.suit);
     return `${emoji} ${core} ${suit}${h.week}`;
   } else {
     return `${emoji} ${year}.${core}`;
   }
 }
 
+// ----- SUN time formatter (time only) -----
+function formatSUNTime(dateObj) {
+  if (!dateObj || isNaN(dateObj.getTime())) return '';
+  const gpct = getGPCTime(dateObj);
+  const timeStr = String(gpct.hour).padStart(2,'0') + ':' + String(gpct.minute).padStart(2,'0');
+  return `${timeStr} ${gpct.period}`;
+}
+
+// ----- UTC formatter -----
+function formatUTCTime(dateObj) {
+  if (!dateObj || isNaN(dateObj.getTime())) return '';
+  const y = dateObj.getUTCFullYear();
+  const m = String(dateObj.getUTCMonth()+1).padStart(2,'0');
+  const d = String(dateObj.getUTCDate()).padStart(2,'0');
+  const hh = String(dateObj.getUTCHours()).padStart(2,'0');
+  const mm = String(dateObj.getUTCMinutes()).padStart(2,'0');
+  return `${y}-${m}-${d} ${hh}:${mm}Z`;
+}
+
+// ----- Main display function -----
+function formatDisplayTime(dateObj) {
+  if (!dateObj || isNaN(dateObj.getTime())) return '';
+  if (timeMode === 'utc') return formatUTCTime(dateObj);
+  if (timeMode === 'sun') return formatSUNTime(dateObj);
+  // gpc mode: date only (no time)
+  const days = GPC.daysFromGregorian(dateObj);
+  const g = GPC.gpcFromDays(days);
+  return formatGPC(g);
+}
+
+function formatZuluTime(dateObj) {
+  return formatDisplayTime(dateObj);
+}
+
 /* ===============================
    FILTER STATE
 =============================== */
 function encodeFilterState() {
-  const state = { doyActive, dosActive, domActive, heptadActive, currentDayFilter, currentDOMFilter, currentSeason, currentDOYMonth };
+  const state = { doyActive, dosActive, domActive, heptadActive, currentDayFilter, currentDOMFilter, currentSeason, currentDOYMonth, timeMode };
   const json = JSON.stringify(state);
   return btoa(json).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
@@ -577,6 +583,7 @@ function restoreFilterFromState() {
   currentDOMFilter = state.currentDOMFilter ?? null;
   currentSeason = state.currentSeason ?? null;
   currentDOYMonth = state.currentDOYMonth ?? null;
+  timeMode = state.timeMode || 'gpc';
   syncModeAndHeptad();
   const newUrl = window.location.origin + window.location.pathname + window.location.hash;
   window.history.replaceState({}, '', newUrl);
@@ -605,7 +612,6 @@ function updateTopBar() {
   const now = new Date();
   document.getElementById("gpc-display").textContent = formatDisplayTime(now);
 }
-
 function showWeekFilter(){ document.getElementById("week-filter-container").style.display="block"; }
 function hideWeekFilter(){ document.getElementById("week-filter-container").style.display="none"; }
 function showDOMFilter(){ document.getElementById("dom-filter-container").style.display="block"; }
@@ -818,8 +824,8 @@ function renderInbox(messages) {
         <div class="mail-subject">${escapeHtml(sub)}</div>
         <div class="mail-sender">${escapeHtml(from)}</div>
         <div class="mail-meta">
-          <span class="date-greg">${showUTC ? displayTime : greg}</span>
-          <span class="date-gpc">${showUTC ? '' : displayTime}</span>
+          <span class="date-greg">${timeMode === 'utc' ? displayTime : greg}</span>
+          <span class="date-gpc">${timeMode === 'utc' ? '' : displayTime}</span>
         </div>
         <div class="mail-preview">${escapeHtml(snippet)}</div>
       </div>`;
@@ -866,7 +872,8 @@ function previewMail(){
   });
   const now=new Date();
   const currentTime = formatDisplayTime(now);
-  const final = `📅 ${showUTC ? 'UTC' : 'GPC'}: ${currentTime}\n\n${body}\n\n----------------\n`;
+  const label = timeMode === 'utc' ? 'UTC' : (timeMode === 'sun' ? 'SUN' : 'GPC');
+  const final = `📅 ${label}: ${currentTime}\n\n${body}\n\n----------------\n`;
   const greg = formatGregorian(now);
   document.getElementById("preview").innerHTML=`
     <div class="mail">
@@ -1214,27 +1221,37 @@ function toggleHeptad() {
       document.querySelectorAll('.filter-day').forEach(td => td.classList.remove('active'));
     }
   } else {
+    // Activate heptad; if no other mode is active, set a default day filter
     heptadActive = true;
     if (!doyActive && !dosActive && !domActive) {
       if (!currentDayFilter) {
         const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date()));
         const dayIdx = GPC.getDayOfWeekIndex(todayGPC.doy);
-        setDayFilter(dayIdx);
+        setDayFilter(dayIdx);   // this also fetches inbox
       }
+    } else {
+      // Heptad is active but another mode already has a filter; no week filter shown
     }
   }
   syncModeAndHeptad();
   updateAllFilters();
   updateTopBar();
   updateModeButtons();
-  fetchZohoInbox();
+  if (!(heptadActive && currentDayFilter !== null && !doyActive && !dosActive && !domActive)) {
+    // only fetch if we didn't already fetch via setDayFilter
+    fetchZohoInbox();
+  }
 }
 
+// Triple time toggle
 function toggleTimeMode() {
-  showUTC = !showUTC;
-  const btn = document.getElementById('utc-toggle');
-  btn.textContent = showUTC ? 'UTC' : 'GPC';
-  btn.classList.toggle('active', showUTC);
+  const modes = ['gpc', 'utc', 'sun'];
+  let idx = modes.indexOf(timeMode);
+  idx = (idx + 1) % modes.length;
+  timeMode = modes[idx];
+  const btn = document.getElementById('time-toggle');
+  btn.textContent = timeMode.toUpperCase();
+  btn.classList.toggle('active', timeMode !== 'gpc');
   updateTopBar();
   fetchZohoInbox();
 }
@@ -1247,7 +1264,9 @@ function updateModeButtons() {
     else if (m === 'DOM') btn.classList.toggle('active', domActive);
   });
   document.getElementById('heptad-btn').classList.toggle('active', heptadActive);
-  document.getElementById('utc-toggle').classList.toggle('active', showUTC);
+  const btn = document.getElementById('time-toggle');
+  btn.textContent = timeMode.toUpperCase();
+  btn.classList.toggle('active', timeMode !== 'gpc');
 }
 
 /* ===============================
@@ -1281,7 +1300,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.querySelector('[data-mode="DOS"]').addEventListener('click', toggleDOS);
   document.querySelector('[data-mode="DOM"]').addEventListener('click', toggleDOM);
   document.getElementById('heptad-btn').addEventListener('click', toggleHeptad);
-  document.getElementById('utc-toggle').addEventListener('click', toggleTimeMode);
+  document.getElementById('time-toggle').addEventListener('click', toggleTimeMode);
   document.getElementById('prev-day-btn').addEventListener('click',prevDay);
   document.getElementById('next-day-btn').addEventListener('click',nextDay);
   document.querySelector('#filter-status .filter-remove').addEventListener('click',clearDayFilter);
