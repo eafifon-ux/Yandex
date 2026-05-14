@@ -187,6 +187,26 @@
     overflow-x: hidden;
   }
   .loading-text { text-align: center; padding: 30px; color: #888; }
+  
+  /* Sun mode: distinct visual for time display */
+body.time-mode-sun .date-gpc {
+  background: #ffedd5;  /* warm orange tint */
+  color: #b45309;       /* deep amber text */
+  border: 1px solid #fb923c;
+  box-shadow: 0 0 0 2px rgba(251,146,60,0.15);
+}
+body.time-mode-sun .mail-meta {
+  border-left: 3px solid #fb923c;
+  padding-left: 8px;
+}
+
+body.time-mode-sun .date-gpc,
+body.time-mode-sun #modalDateZulu {
+  background: #ffedd5;
+  color: #b45309;
+  border: 1px solid #fb923c;
+}
+
 </style>
 </head>
 <body>
@@ -1288,9 +1308,12 @@ function toggleTimeMode() {
   const btn = document.getElementById('time-toggle');
   btn.textContent = timeMode.toUpperCase();
   btn.classList.toggle('active', timeMode !== 'gpc');
+  // Add/remove body class for Sun mode styling
+  document.body.classList.toggle('time-mode-sun', timeMode === 'sun');
   updateTopBar();
   fetchZohoInbox();
 }
+
 
 function updateModeButtons() {
   document.querySelectorAll('[data-mode]').forEach(btn => {
