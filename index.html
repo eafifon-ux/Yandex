@@ -167,10 +167,20 @@
     margin-top: 10px;
     word-wrap: break-word;
     overflow-wrap: break-word;
+    word-break: break-word;
     line-height: 1.6;
     white-space: pre-wrap;
     font-family: inherit;
+    overflow-x: hidden;
   }
+.modal-box {
+  overflow-x: hidden;  /* prevent horizontal scroll on the whole modal */
+}
+.modal-body {
+  overflow-x: hidden;  /* also on the body */
+  word-break: break-word; /* force long strings to break */
+}
+
   .loading-text { text-align: center; padding: 30px; color: #888; }
 </style>
 </head>
