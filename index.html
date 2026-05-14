@@ -439,7 +439,7 @@ let doyActive = true;
 let dosActive = false;
 let domActive = false;
 let heptadActive = false;
-let showUTC = false;            // NEW: UTC toggle flag
+let showUTC = false;
 
 function getMode() {
   if (doyActive) return 'DOY';
@@ -480,6 +480,47 @@ function getGPCMonthDay(gpcDoy) {
   return {month:12,day:r};
 }
 
+// ----- New GPC time helpers (based on Metro GPC) -----
+function getGPCTime(dateObj) {
+  const utcHours = dateObj.getUTCHours();
+  const utcMinutes = dateObj.getUTCMinutes();
+  const gpcHour = (utcHours + 18) % 24;               // GPC clock = UTC-6
+  const localMinutes = dateObj.getHours() * 60 + dateObj.getMinutes();
+  let period;
+  if (localMinutes <= 360) period = 'Napa';           // 00:00‑06:00 local
+  else if (localMinutes <= 720) period = 'Mike';      // 06:01‑12:00
+  else if (localMinutes <= 1080) period = 'Alpha';    // 12:01‑18:00
+  else period = 'Echo';                                // 18:01‑23:59
+  return { gpcHour, gpcMinute: utcMinutes, period };
+}
+
+// ----- Combined GPC display with time and period -----
+function formatGPCWithTime(dateObj) {
+  if (!dateObj || isNaN(dateObj.getTime())) return '';
+  const days = GPC.daysFromGregorian(dateObj);
+  const g = GPC.gpcFromDays(days);
+  const emoji = GPC.weekEmojis[(g.doy - 1) % 7];
+  const gpct = getGPCTime(dateObj);
+  const timeStr = String(gpct.gpcHour).padStart(2,'0') + ':' + String(gpct.gpcMinute).padStart(2,'0');
+  return `${emoji} ${g.year}.${String(g.doy).padStart(3,'0')} ${timeStr} ${gpct.period}`;
+}
+
+// ----- Display formatter (respects showUTC toggle) -----
+function formatDisplayTime(dateObj) {
+  if (!dateObj || isNaN(dateObj.getTime())) return '';
+  if (showUTC) {
+    return dateObj.toISOString().slice(0,16).replace('T', ' ') + 'Z';
+  } else {
+    return formatGPCWithTime(dateObj);
+  }
+}
+
+// All old formatZuluTime uses are replaced by formatDisplayTime
+function formatZuluTime(dateObj) {
+  return formatDisplayTime(dateObj);
+}
+
+// ----- Old formatGPC kept for fallback (no time) -----
 function formatGPC(gpcDate) {
   const {year,doy}=gpcDate;
   const emoji=GPC.weekEmojis[(doy-1)%7];
@@ -501,44 +542,6 @@ function formatGPC(gpcDate) {
     return `${emoji} ${core} ${suit}${h.week}`;
   } else {
     return `${emoji} ${year}.${core}`;
-  }
-}
-
-// ----- UTC / GPC display formatter -----
-function formatDisplayTime(dateObj) {
-  if (!dateObj || isNaN(dateObj.getTime())) return '';
-  if (showUTC) {
-    const y = dateObj.getUTCFullYear();
-    const m = String(dateObj.getUTCMonth()+1).padStart(2,'0');
-    const d = String(dateObj.getUTCDate()).padStart(2,'0');
-    const hh = String(dateObj.getUTCHours()).padStart(2,'0');
-    const mm = String(dateObj.getUTCMinutes()).padStart(2,'0');
-    return `${y}-${m}-${d} ${hh}:${mm}Z`;
-  } else {
-    const days = GPC.daysFromGregorian(dateObj);
-    const g = GPC.gpcFromDays(days);
-    return formatGPC(g);
-  }
-}
-
-// ----- ZULU TIME FORMATTING (now obeys showUTC) -----
-function formatZuluTime(dateObj) {
-  if (!dateObj || isNaN(dateObj.getTime())) return '';
-  if (showUTC) {
-    const y = dateObj.getUTCFullYear();
-    const m = String(dateObj.getUTCMonth()+1).padStart(2,'0');
-    const d = String(dateObj.getUTCDate()).padStart(2,'0');
-    const hh = String(dateObj.getUTCHours()).padStart(2,'0');
-    const mm = String(dateObj.getUTCMinutes()).padStart(2,'0');
-    return `${y}-${m}-${d} ${hh}:${mm}Z`;
-  } else {
-    const utc = new Date(dateObj.getTime());
-    const days = GPC.daysFromGregorian(utc);
-    const g = GPC.gpcFromDays(days);
-    const emoji = GPC.weekEmojis[(g.doy - 1) % 7];
-    const hh = String(utc.getUTCHours()).padStart(2,'0');
-    const mm = String(utc.getUTCMinutes()).padStart(2,'0');
-    return `${emoji} ${g.year}.${String(g.doy).padStart(3,'0')} ${hh}:${mm}Z`;
   }
 }
 
@@ -597,18 +600,7 @@ function zohoLogin() {
 =============================== */
 function updateTopBar() {
   const now = new Date();
-  if (showUTC) {
-    const y = now.getUTCFullYear();
-    const m = String(now.getUTCMonth()+1).padStart(2,'0');
-    const d = String(now.getUTCDate()).padStart(2,'0');
-    const hh = String(now.getUTCHours()).padStart(2,'0');
-    const mm = String(now.getUTCMinutes()).padStart(2,'0');
-    document.getElementById("gpc-display").textContent = `${y}-${m}-${d} ${hh}:${mm} UTC`;
-  } else {
-    const days = GPC.daysFromGregorian(now);
-    const g = GPC.gpcFromDays(days);
-    document.getElementById("gpc-display").textContent = formatGPC(g);
-  }
+  document.getElementById("gpc-display").textContent = formatDisplayTime(now);
 }
 
 function showWeekFilter(){ document.getElementById("week-filter-container").style.display="block"; }
@@ -858,7 +850,7 @@ async function fetchZohoInbox() {
 }
 
 /* ===============================
-   PREVIEW (obeys UTC toggle)
+   PREVIEW
 =============================== */
 function previewMail(){
   const to=document.getElementById("to").value;
@@ -870,11 +862,8 @@ function previewMail(){
     return `${m} (${g.year}.${String(g.doy).padStart(3,"0")})`;
   });
   const now=new Date();
-  const label = showUTC ? 'UTC' : 'GPC';
-  const currentTime = showUTC
-    ? `${now.getUTCFullYear()}-${String(now.getUTCMonth()+1).padStart(2,'0')}-${String(now.getUTCDate()).padStart(2,'0')} ${String(now.getUTCHours()).padStart(2,'0')}:${String(now.getUTCMinutes()).padStart(2,'0')}Z`
-    : formatGPC(GPC.gpcFromDays(GPC.daysFromGregorian(now)));
-  const final = `📅 ${label}: ${currentTime}\n\n${body}\n\n----------------\n`;
+  const currentTime = formatDisplayTime(now);
+  const final = `📅 ${showUTC ? 'UTC' : 'GPC'}: ${currentTime}\n\n${body}\n\n----------------\n`;
   const greg = formatGregorian(now);
   document.getElementById("preview").innerHTML=`
     <div class="mail">
@@ -1238,15 +1227,13 @@ function toggleHeptad() {
   fetchZohoInbox();
 }
 
-// NEW: UTC toggle
 function toggleTimeMode() {
   showUTC = !showUTC;
   const btn = document.getElementById('utc-toggle');
   btn.textContent = showUTC ? 'UTC' : 'GPC';
   btn.classList.toggle('active', showUTC);
   updateTopBar();
-  fetchZohoInbox();  // refresh inbox list
-  // Preview remains as is (will update when preview is pressed)
+  fetchZohoInbox();
 }
 
 function updateModeButtons() {
