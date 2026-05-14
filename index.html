@@ -481,20 +481,21 @@ function getGPCMonthDay(gpcDoy) {
 }
 
 // ----- New GPC time helpers (based on Metro GPC) -----
+// ----- Corrected GPC time helpers (mirrors Metro GPC exactly) -----
 function getGPCTime(dateObj) {
-  const utcHours = dateObj.getUTCHours();
-  const utcMinutes = dateObj.getUTCMinutes();
-  const gpcHour = (utcHours + 18) % 24;               // GPC clock = UTC-6
-  const localMinutes = dateObj.getHours() * 60 + dateObj.getMinutes();
+  const localHours = dateObj.getHours();
+  const localMinutes = dateObj.getMinutes();
+  const gpcHour = (localHours + 18) % 24;           // GPC clock = local + 18
+  const gpcMinute = localMinutes;                   // same minute
+  const totalLocalMinutes = localHours * 60 + localMinutes;
   let period;
-  if (localMinutes <= 360) period = 'Napa';           // 00:00‑06:00 local
-  else if (localMinutes <= 720) period = 'Mike';      // 06:01‑12:00
-  else if (localMinutes <= 1080) period = 'Alpha';    // 12:01‑18:00
-  else period = 'Echo';                                // 18:01‑23:59
-  return { gpcHour, gpcMinute: utcMinutes, period };
+  if (totalLocalMinutes <= 360) period = 'Napa';        // 00:00‑06:00
+  else if (totalLocalMinutes <= 720) period = 'Mike';   // 06:01‑12:00
+  else if (totalLocalMinutes <= 1080) period = 'Alpha'; // 12:01‑18:00
+  else period = 'Echo';                                  // 18:01‑23:59
+  return { gpcHour, gpcMinute, period };
 }
 
-// ----- Combined GPC display with time and period -----
 function formatGPCWithTime(dateObj) {
   if (!dateObj || isNaN(dateObj.getTime())) return '';
   const days = GPC.daysFromGregorian(dateObj);
@@ -502,8 +503,10 @@ function formatGPCWithTime(dateObj) {
   const emoji = GPC.weekEmojis[(g.doy - 1) % 7];
   const gpct = getGPCTime(dateObj);
   const timeStr = String(gpct.gpcHour).padStart(2,'0') + ':' + String(gpct.gpcMinute).padStart(2,'0');
+  // Display: emoji year.doy HH:MM period
   return `${emoji} ${g.year}.${String(g.doy).padStart(3,'0')} ${timeStr} ${gpct.period}`;
 }
+
 
 // ----- Display formatter (respects showUTC toggle) -----
 function formatDisplayTime(dateObj) {
