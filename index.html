@@ -1159,11 +1159,20 @@ function toggleDOS() {
 }
 function toggleDOM() {
   if (domActive) {
+    // turn off DOM
     domActive = false;
     currentDOMFilter = null;
     clearDOMFilter();
   } else {
+    // turn on DOM
     domActive = true;
+    // Heptad filter (display + filter) must be off
+    if (heptadActive) {
+      heptadActive = false;
+      currentDayFilter = null;
+      clearDayFilter();
+    }
+    // set default DOM day if none selected
     if (!currentDOMFilter) {
       const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date()));
       const md = getGPCMonthDay(todayGPC.doy);
@@ -1179,11 +1188,20 @@ function toggleDOM() {
 
 function toggleHeptad() {
   if (heptadActive) {
+    // turn off Heptad (display + filter)
     heptadActive = false;
     currentDayFilter = null;
     clearDayFilter();
   } else {
+    // turn on Heptad display
     heptadActive = true;
+    // DOM filter must be off
+    if (domActive) {
+      domActive = false;
+      currentDOMFilter = null;
+      clearDOMFilter();
+    }
+    // set default day filter if none selected
     if (!currentDayFilter) {
       const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date()));
       const dayIdx = GPC.getDayOfWeekIndex(todayGPC.doy);
@@ -1196,6 +1214,7 @@ function toggleHeptad() {
   updateModeButtons();
   fetchZohoInbox();
 }
+
 
 function updateModeButtons() {
   document.querySelectorAll('[data-mode]').forEach(btn => {
