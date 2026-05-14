@@ -735,7 +735,8 @@ function renderInbox(messages) {
   messages.forEach(msg => {
     const sub = msg.subject || "(No subject)";
     const from = msg.fromAddress || msg.sender || "Unknown";
-    const date = new Date(msg.date || msg.receivedDate || Date.now());
+    const date = parseDate(msg);
+
     const greg = formatGregorian(date);
     const gpc = formatGPC(GPC.gpcFromDays(GPC.daysFromGregorian(date)));
     const snippet = msg.summary || msg.snippet || "";
@@ -760,6 +761,16 @@ function renderInbox(messages) {
 
 function formatGregorian(d){const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${dd}`;}
 function escapeHtml(t){const d=document.createElement('div'); d.textContent=t; return d.innerHTML;}
+
+function parseDate(msg) {
+  let raw = msg.date || msg.receivedTime || msg.receivedDate || msg.sentDate;
+  if (!raw) return new Date();
+  if (typeof raw === 'number') return new Date(raw);
+  const d = new Date(raw);
+  if (!isNaN(d.getTime())) return d;
+  return new Date(raw.replace(/(\+|-)\d{2}:?\d{2}$/, ''));
+}
+
 
 async function fetchZohoInbox() {
   const token=getToken();
@@ -945,7 +956,8 @@ function renderMessage(msg) {
   document.getElementById('modalSubject').textContent = msg.subject || '(No subject)';
   document.getElementById('modalFrom').textContent = 'From: ' + (msg.fromAddress || 'Unknown');
   document.getElementById('modalTo').textContent = 'To: ' + (msg.toAddress || 'Unknown');
-  const date = new Date(msg.date || msg.receivedDate || Date.now());
+  const date = parseDate(msg);
+
   document.getElementById('modalDate').textContent = 'Date: ' + date.toLocaleString();
 
   let bodyHtml = '';
