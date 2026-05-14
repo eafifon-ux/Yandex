@@ -608,6 +608,31 @@ function formatZuluTime(dateObj) {
   return formatFullGPCWithTime(dateObj);
 }
 
+function getGPCBadgeHTML(dateObj) {
+  if (!dateObj || isNaN(dateObj.getTime())) return '';
+  
+  if (timeMode === 'utc') {
+    const utcTime = formatUTCTime(dateObj);
+    return `<span class="date-gpc utc-pill">${utcTime}</span>`;
+  }
+  
+  const displayTime = formatDisplayTime(dateObj);
+  const zuluTime = formatZuluTime(dateObj);
+  
+  if (timeMode === 'sun') {
+    const parts = zuluTime.split(' ');
+    const datePart = parts.slice(0, 2).join(' ');
+    const timePart = parts.slice(2).join(' ');
+    return `
+      <span class="date-gpc">${datePart}</span>
+      <span class="sun-time">${timePart}</span>
+    `;
+  } else {
+    // GPC mode
+    return `<span cla:s:s="date-gpc">${displayTime}</span>`;
+  }
+}
+
 /* ===============================
    FILTER STATE
 =============================== */
@@ -1061,30 +1086,6 @@ if (timeMode === 'sun') {
   modalEl.textContent = formatZuluTime(dateObj);
 }
 
-function getGPCBadgeHTML(dateObj) {
-  if (!dateObj || isNaN(dateObj.getTime())) return '';
-  
-  if (timeMode === 'utc') {
-    const utcTime = formatUTCTime(dateObj);
-    return `<span class="date-gpc utc-pill">${utcTime}</span>`;
-  }
-  
-  const displayTime = formatDisplayTime(dateObj);
-  const zuluTime = formatZuluTime(dateObj);
-  
-  if (timeMode === 'sun') {
-    const parts = zuluTime.split(' ');
-    const datePart = parts.slice(0, 2).join(' ');
-    const timePart = parts.slice(2).join(' ');
-    return `
-      <span class="date-gpc">${datePart}</span>
-      <span class="sun-time">${timePart}</span>
-    `;
-  } else {
-    // GPC mode
-    return `<span class="date-gpc">${displayTime}</span>`;
-  }
-}
  // uses full GPC+time for GPC/SUN
 
   document.getElementById('modalBody').innerHTML = '<div class="loading-text">Loading message body...</div>';
