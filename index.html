@@ -565,12 +565,10 @@ function formatDisplayTime(dateObj) {
 }
 
 function formatZuluTime(dateObj) {
+  // For modal and inbox: use full GPC+time for GPC and SUN modes
   if (timeMode === 'utc') return formatUTCTime(dateObj);
-  if (timeMode === 'sun') return formatFullGPCWithTime(dateObj);
-  // GPC mode: date only (no time)
-  return formatDisplayTime(dateObj);
+  return formatFullGPCWithTime(dateObj);
 }
-
 
 /* ===============================
    FILTER STATE
@@ -835,7 +833,8 @@ function renderInbox(messages) {
     const from = msg.fromAddress || msg.sender || "Unknown";
     const date = parseDate(msg);
     const greg = formatGregorian(date);
-    const displayTime = formatZuluTime(date); // uses full GPC+time for GPC/SUN
+    const displayTime = (timeMode === 'gpc') ? formatDisplayTime(date) : formatZuluTime(date);
+ // uses full GPC+time for GPC/SUN
     const snippet = msg.summary || msg.snippet || "";
     html += `
       <div class="mail"
