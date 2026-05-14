@@ -970,61 +970,58 @@ function renderMessage(msg) {
     document.getElementById('modalBody').innerHTML = `<div class="error-message">Message not found.</div>`;
     return;
   }
-
-  // Field extraction – try many possible field names
+  
+  // Field extraction
   const subject = msg.subject || msg.Subject || msg.emailSubject || msg.title || '(No subject)';
   const from = msg.fromAddress || msg.FromAddress || msg.sender || msg.senderAddress || msg.from || 'Unknown';
   const to = msg.toAddress || msg.ToAddress || msg.recipients || msg.to || 'Unknown';
-
-  // Date – try many fields
-  let rawDate = msg.date || msg.receivedDate || msg.receivedTime || msg.sentDate || msg.sentTime || msg.sentDate;
-  let dateObj;
+  
+  // Date handling
+  let dateObj = new Date();
+  const rawDate = msg.date || msg.receivedDate || msg.receivedTime || msg.sentDate || msg.sentTime;
   if (rawDate) {
     dateObj = new Date(rawDate);
-    if (isNaN(dateObj.getTime())) {
-      if (typeof rawDate === 'string' && /^\d{13}$/.test(rawDate)) dateObj = new Date(parseInt(rawDate,10));
-      else dateObj = new Date();
+    if (isNaN(dateObj.getTime()) && /^\d{13}$/.test(rawDate)) {
+      dateObj = new Date(parseInt(rawDate, 10));
     }
-  } else {
-    dateObj = new Date();
   }
-
+  
   document.getElementById('modalSubject').textContent = subject;
   document.getElementById('modalFrom').textContent = 'From: ' + from;
   document.getElementById('modalTo').textContent = 'To: ' + to;
   document.getElementById('modalDate').textContent = 'Date: ' + dateObj.toLocaleString();
-
-  // Body: prefer plain text, then HTML cleaned to text.
-  let plainText = '';
-  if (msg.content && typeof msg.content === 'string') {
-    plainText = msg.content;
-  } else if (msg.htmlContent && typeof msg.htmlContent === 'string') {
-    // Parse HTML and extract text with line breaks
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(msg.htmlContent, 'text/html');
-    // Remove script/style/img
-    doc.querySelectorAll('script, style, img, meta, link').forEach(el => el.remove());
-    // Replace block-level tags with newlines
-    const blockTags = ['br','p','div','tr','li','h1','h2','h3','h4','h5','h6','blockquote','pre','table','td','th','thead','tbody','tfoot','ul','ol','dl','dt','dd','header','footer','section','article','nav','aside','figure','figcaption','details','summary','hr','form','fieldset','legend','center'];
-    blockTags.forEach(tag => {
-      doc.body.querySelectorAll(tag).forEach(el => {
-        el.insertAdjacentText('afterend', '\n');
-      });
-    });
-    // Get text content
-    plainText = doc.body.textContent || '';
-    // Normalize whitespace
-    plainText = plainText.replace(/\s*\n\s*/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
-    // Decode HTML entities
-    const textarea = document.createElement('textarea');
-    textarea.innerHTML = plainText;
-    plainText = textarea.value;
-  } else {
-    plainText = '(No content)';
+  
+  // ──────── IMPROVED HTML RENDERING ────────
+  let htmlContent = '';
+  
+  if (msg.htmlContent && typeof msg.htmlContent === 'string') {
+    htmlContent = msg.htmlContent;
+  } else if (msg.content && typeof msg.content === 'string') {
+    htmlContent = msg.content;
+  } else if (msg.body && typeof msg.body === 'string') {
+    htmlContent = msg.body;
   }
-
-  // Set modal body as pre with white-space pre-wrap
-  document.getElementById('modalBody').innerHTML = `<pre style="white-space:pre-wrap;font-family:inherit;margin:0;font-size:0.95em;line-height:1.6;">${escapeHtml(plainText)}</pre>`;
+  
+  if (htmlContent) {
+    // Basic security sanitization
+    htmlContent = htmlContent
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/on\w+=["'][^"']*["']/gi, '');
+    
+    document.getElementById('modalBody').innerHTML = `
+      <div style="line-height:1.65; font-size:15.2px; padding:8px 4px;">
+        ${htmlContent}
+      </div>`;
+  }
+  else {
+    // Plain text fallback
+    const plainText = msg.content || msg.textContent || msg.summary || msg.snippet || '(No content)';
+    document.getElementById('modalBody').innerHTML = `
+      <pre style="white-space:pre-wrap; font-family:inherit; margin:0; font-size:0.95em; line-height:1.6; background:#f8f9fa; padding:15px; border-radius:8px;">
+        ${escapeHtml(plainText)}
+      </pre>`;
+  }
 }
 
 /* ===============================
