@@ -580,11 +580,13 @@ function showDOYFilter(){ document.getElementById("doy-filter-container").style.
 function hideDOYFilter(){ document.getElementById("doy-filter-container").style.display="none"; }
 function updateAllFilters(){
   hideWeekFilter(); hideDOMFilter(); hideDOSFilter(); hideDOYFilter();
-  if(heptadActive) showWeekFilter();
+  // Show week filter only when heptad filter is actually active (i.e., a day filter exists)
+  if (heptadActive && currentDayFilter !== null) showWeekFilter();
   if(domActive) showDOMFilter();
   if(dosActive) showDOSFilter();
   if(doyActive) showDOYFilter();
 }
+
 
 function generateDOMCalendar(){
   const tbody=document.getElementById("dom-calendar-body");
@@ -1188,25 +1190,25 @@ function toggleDOM() {
 
 function toggleHeptad() {
   if (heptadActive) {
-    // turn off Heptad (display + filter)
+    // Turn off both display and any day filter
     heptadActive = false;
-    currentDayFilter = null;
-    clearDayFilter();
+    if (currentDayFilter !== null) {
+      currentDayFilter = null;
+      document.getElementById('filter-status').style.display = 'none';
+      document.querySelectorAll('.filter-day').forEach(td => td.classList.remove('active'));
+    }
   } else {
-    // turn on Heptad display
+    // Turn on heptad display
     heptadActive = true;
-    // DOM filter must be off
-    if (domActive) {
-      domActive = false;
-      currentDOMFilter = null;
-      clearDOMFilter();
+    // Activate the day filter ONLY if no other primary filter (DOY/DOS/DOM) is active
+    if (!doyActive && !dosActive && !domActive) {
+      if (!currentDayFilter) {
+        const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date()));
+        const dayIdx = GPC.getDayOfWeekIndex(todayGPC.doy);
+        setDayFilter(dayIdx);
+      }
     }
-    // set default day filter if none selected
-    if (!currentDayFilter) {
-      const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date()));
-      const dayIdx = GPC.getDayOfWeekIndex(todayGPC.doy);
-      setDayFilter(dayIdx);
-    }
+    // If DOM (or DOY/DOS) is active, do NOT touch currentDayFilter
   }
   syncModeAndHeptad();
   updateAllFilters();
@@ -1214,6 +1216,7 @@ function toggleHeptad() {
   updateModeButtons();
   fetchZohoInbox();
 }
+
 
 
 function updateModeButtons() {
