@@ -709,19 +709,21 @@ function filterByDOYMonth(messages, month) {
 
 function applyFilters(messages) {
   let filtered = messages;
+  // Primary filters (DOY, DOS, DOM) always apply when active
   if (doyActive && currentDOYMonth !== null) {
     filtered = filterByDOYMonth(filtered, currentDOYMonth);
   } else if (dosActive && currentSeason !== null) {
     filtered = filterBySeason(filtered, currentSeason);
-  }
-  if (domActive && currentDOMFilter !== null) {
+  } else if (domActive && currentDOMFilter !== null) {
     filtered = filterByDOM(filtered, currentDOMFilter);
   }
-  if (heptadActive && currentDayFilter !== null) {
+  // Heptad filter only applies when it's the *only* active filter
+  if (heptadActive && currentDayFilter !== null && !doyActive && !dosActive && !domActive) {
     filtered = filterByDay(filtered, currentDayFilter);
   }
   return filtered;
 }
+
 
 function renderInbox(messages) {
   const inboxDiv = document.getElementById("inbox");
@@ -1017,11 +1019,6 @@ function toggleDOM() {
     clearDOMFilter();
   } else {
     domActive = true;
-    if (heptadActive) {
-      heptadActive = false;
-      currentDayFilter = null;
-      clearDayFilter();
-    }
     if (!currentDOMFilter) {
       const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date()));
       const md = getGPCMonthDay(todayGPC.doy);
@@ -1035,6 +1032,7 @@ function toggleDOM() {
   fetchZohoInbox();
 }
 
+
 function toggleHeptad() {
   if (heptadActive) {
     heptadActive = false;
@@ -1042,11 +1040,6 @@ function toggleHeptad() {
     clearDayFilter();
   } else {
     heptadActive = true;
-    if (domActive) {
-      domActive = false;
-      currentDOMFilter = null;
-      clearDOMFilter();
-    }
     if (!currentDayFilter) {
       const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date()));
       const dayIdx = GPC.getDayOfWeekIndex(todayGPC.doy);
@@ -1059,6 +1052,7 @@ function toggleHeptad() {
   updateModeButtons();
   fetchZohoInbox();
 }
+
 
 function updateModeButtons() {
   document.querySelectorAll('[data-mode]').forEach(btn => {
