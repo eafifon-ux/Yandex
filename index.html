@@ -145,7 +145,7 @@
     position: relative;
     max-height: 90vh;
     overflow-y: auto;
-    overflow-x: hidden;   /* prevent horizontal scroll */
+    overflow-x: hidden;
   }
   .modal-close {
     position: absolute;
@@ -727,6 +727,9 @@ function applyFilters(messages) {
   return filtered;
 }
 
+// Message store for inbox data
+const messageStore = new Map();
+
 function renderInbox(messages) {
   const inboxDiv = document.getElementById("inbox");
   if (!messages || messages.length === 0) {
@@ -735,6 +738,9 @@ function renderInbox(messages) {
   }
   let html = `<p>Showing ${messages.length} messages:</p>`;
   messages.forEach(msg => {
+    const messageId = msg.messageId || msg.id;
+    if (messageId) messageStore.set(String(messageId), msg);
+
     const sub = msg.subject || "(No subject)";
     const from = msg.fromAddress || msg.sender || "Unknown";
     const date = parseDate(msg);
@@ -743,7 +749,7 @@ function renderInbox(messages) {
     const snippet = msg.summary || msg.snippet || "";
     html += `
       <div class="mail"
-           data-message-id="${escapeHtml(msg.messageId || '')}"
+           data-message-id="${escapeHtml(messageId || '')}"
            data-folder-id="${escapeHtml(msg.folderId || '')}"
            style="cursor:pointer;">
         <div class="mail-subject">${escapeHtml(sub)}</div>
@@ -845,22 +851,108 @@ async function loadProfile(){
 }
 
 /* ===============================
-   OPEN / READ EMAIL MODAL
+   MODAL FUNCTIONS (using stored metadata)
 =============================== */
 function openEmailModal(messageId, folderId) {
   const modal = document.getElementById('emailModal');
   modal.classList.add('active');
-  document.getElementById('modalSubject').textContent = 'Loading…';
+  document.getElementById('modalSubject').textContent = 'Loading...';
   document.getElementById('modalFrom').textContent = '';
   document.getElementById('modalTo').textContent = '';
   document.getElementById('modalDate').textContent = '';
-  document.getElementById('modalBody').innerHTML = '<div class="loading-text">Loading message…</div>';
-  fetchFullMessage(messageId, folderId);
+  document.getElementById('modalBody').innerHTML = '<div class="loading-text">Loading message...</div>';
+
+  // Try stored data first
+  const stored = messageStore.get(String(messageId));
+  if (stored) {
+    renderMessageWithMeta(stored);
+  } else {
+    // fallback – fetch full message
+    fetchFullMessage(messageId, folderId);
+  }
 }
+
 function closeEmailModal() {
   document.getElementById('emailModal').classList.remove('active');
 }
 
+// Render modal using stored inbox metadata then fetch content
+function renderMessageWithMeta(msg) {
+  if (!msg) {
+    document.getElementById('modalBody').innerHTML = '<div class="error-message">Message not found.</div>';
+    return;
+  }
+
+  const subject = msg.subject || '(No subject)';
+  document.getElementById('modalSubject').textContent = subject;
+
+  let from = 'Unknown';
+  const fromField = msg.fromAddress || msg.sender || msg.senderAddress || msg.from;
+  if (fromField) {
+    if (typeof fromField === 'string') from = fromField;
+    else if (typeof fromField === 'object') from = fromField.emailAddress || fromField.name || JSON.stringify(fromField);
+  }
+  document.getElementById('modalFrom').textContent = 'From: ' + from;
+
+  let to = '';
+  const toField = msg.toAddress || msg.recipients || msg.to;
+  if (toField) {
+    if (typeof toField === 'string') to = toField;
+    else if (Array.isArray(toField)) {
+      to = toField.map(item => (typeof item === 'string' ? item : item.emailAddress || item.name || '')).filter(Boolean).join(', ');
+    } else if (typeof toField === 'object') to = toField.emailAddress || toField.name || JSON.stringify(toField);
+  }
+  document.getElementById('modalTo').textContent = 'To: ' + (to || 'Unknown');
+
+  const dateObj = parseDate(msg);
+  document.getElementById('modalDate').textContent = 'Date: ' + dateObj.toLocaleString();
+
+  // Show loading for content, then fetch
+  document.getElementById('modalBody').innerHTML = '<div class="loading-text">Loading message body...</div>';
+  fetchContentOnly(msg.messageId || msg.id, msg.folderId);
+}
+
+// Fetch only the content (HTML/plain) from API
+async function fetchContentOnly(messageId, folderId) {
+  if (!messageId) {
+    document.getElementById('modalBody').innerHTML = '<div class="error-message">No message ID.</div>';
+    return;
+  }
+  const token = getToken();
+  if (!token) return;
+  const accountId = await getAccountId();
+  if (!accountId) return;
+
+  const proxy = "https://corsproxy.io/?";
+  const patterns = [
+    `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}`,
+    `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}/content`,
+    folderId ? `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}` : null,
+    folderId ? `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}/content` : null
+  ].filter(Boolean);
+
+  for (const url of patterns) {
+    try {
+      const res = await fetch(proxy + encodeURIComponent(url), { headers: { Authorization: "Zoho-oauthtoken " + token } });
+      if (res.ok) {
+        const data = await res.json();
+        const contentMsg = data.data;
+        let htmlContent = contentMsg.htmlContent || contentMsg.content || contentMsg.body || '';
+        if (htmlContent) {
+          htmlContent = htmlContent.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '').replace(/on\w+=["'][^"']*["']/gi, '');
+          document.getElementById('modalBody').innerHTML = `<div style="line-height:1.65;font-size:15.2px;padding:8px 4px;">${htmlContent}</div>`;
+        } else {
+          const plainText = contentMsg.content || contentMsg.textContent || '(No content)';
+          document.getElementById('modalBody').innerHTML = `<pre style="white-space:pre-wrap;font-family:inherit;margin:0;font-size:0.95em;line-height:1.6;background:#f8f9fa;padding:15px;border-radius:8px;">${escapeHtml(plainText)}</pre>`;
+        }
+        return;
+      }
+    } catch(e) {}
+  }
+  document.getElementById('modalBody').innerHTML = '<div class="error-message">Failed to load message content.</div>';
+}
+
+// ---- Keep existing fetchFullMessage for fallback (uses old renderMessage) ----
 async function fetchFullMessage(messageId, folderId) {
   const token = getToken();
   if (!token) return;
@@ -870,6 +962,7 @@ async function fetchFullMessage(messageId, folderId) {
     document.getElementById('modalBody').innerHTML = `<div class="error-message">No message ID found.</div>`;
     return;
   }
+
   const proxy = "https://corsproxy.io/?";
   let errors = [];
   const patterns = [
@@ -878,6 +971,7 @@ async function fetchFullMessage(messageId, folderId) {
     folderId ? `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}` : null,
     folderId ? `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}/content` : null
   ].filter(Boolean);
+
   for (const url of patterns) {
     try {
       const directRes = await fetch(url, { headers: { Authorization: "Zoho-oauthtoken " + token } }).catch(e => null);
@@ -889,10 +983,10 @@ async function fetchFullMessage(messageId, folderId) {
         const status = directRes ? directRes.status : 'CORS blocked';
         let errorBody = '';
         if (directRes) try { errorBody = await directRes.text(); } catch(e) {}
-        errors.push(`Direct: ${url.replace(token, 'TOKEN')} → ${status} | ${errorBody.substring(0, 200)}`);
+        errors.push(`Direct: ${url.replace(token, 'TOKEN')} -> ${status} | ${errorBody.substring(0, 200)}`);
       }
     } catch(e) {
-      errors.push(`Direct error: ${url.replace(token, 'TOKEN')} → ${e.message}`);
+      errors.push(`Direct error: ${url.replace(token, 'TOKEN')} -> ${e.message}`);
     }
     try {
       const res = await fetch(proxy + encodeURIComponent(url), { headers: { Authorization: "Zoho-oauthtoken " + token } });
@@ -904,11 +998,11 @@ async function fetchFullMessage(messageId, folderId) {
         let errorBody = '';
         try { errorBody = await res.text(); } catch(e) {}
         const maskedUrl = url.replace(token, 'TOKEN');
-        errors.push(`Proxy: ${maskedUrl} → HTTP ${res.status} | Body: ${errorBody.substring(0, 200)}`);
+        errors.push(`Proxy: ${maskedUrl} -> HTTP ${res.status} | Body: ${errorBody.substring(0, 200)}`);
       }
-    } catch (e) {
+    } catch(e) {
       const maskedUrl = url.replace(token, 'TOKEN');
-      errors.push(`Proxy error: ${maskedUrl} → ${e.message}`);
+      errors.push(`Proxy error: ${maskedUrl} -> ${e.message}`);
     }
   }
   const errorText = errors.join('\n');
@@ -923,6 +1017,7 @@ async function fetchFullMessage(messageId, folderId) {
       <button class="copy-btn" onclick="copyErrorToClipboard()">📋 Copy error details</button>
     </div>`;
 }
+
 function copyErrorToClipboard() {
   const content = document.querySelector('#modalBody .error-message').innerText;
   navigator.clipboard.writeText(content).then(() => { alert('Copied!'); }).catch(() => {
@@ -936,22 +1031,17 @@ function copyErrorToClipboard() {
   });
 }
 
-/* ===============================
-   renderMessage – robust extraction + raw debug
-=============================== */
+// Render message from API fallback (with raw debug)
 function renderMessage(msg) {
   if (!msg) {
     document.getElementById('modalBody').innerHTML = '<div class="error-message">Message not found.</div>';
     return;
   }
-  // Raw JSON debug
   const rawHtml = '<pre style="white-space:pre-wrap;font-family:monospace;font-size:0.9em;background:#f5f5f5;padding:12px;border-radius:6px;max-height:500px;overflow:auto;">' + escapeHtml(JSON.stringify(msg, null, 2)) + '</pre>';
 
-  // Subject
   const subject = msg.subject || msg.Subject || msg.emailSubject || msg.title || '(No subject)';
   document.getElementById('modalSubject').textContent = subject;
 
-  // From
   let from = 'Unknown';
   const fromField = msg.fromAddress || msg.FromAddress || msg.sender || msg.senderAddress || msg.from;
   if (fromField) {
@@ -961,7 +1051,6 @@ function renderMessage(msg) {
   if (from === 'Unknown' && msg.mailFields) from = msg.mailFields.fromAddress || msg.mailFields.FromAddress || 'Unknown';
   document.getElementById('modalFrom').textContent = 'From: ' + from;
 
-  // To
   let to = 'Unknown';
   const toField = msg.toAddress || msg.ToAddress || msg.recipients || msg.to;
   if (toField) {
@@ -977,7 +1066,6 @@ function renderMessage(msg) {
   if (to === 'Unknown' && msg.mailFields) to = msg.mailFields.toAddress || msg.mailFields.ToAddress || 'Unknown';
   document.getElementById('modalTo').textContent = 'To: ' + to;
 
-  // Date – use more fields
   let dateObj = new Date();
   const rawDate = msg.date || msg.receivedDate || msg.receivedTime || msg.sentDate || msg.sentTime || msg.sentDateInGMT;
   if (rawDate) {
@@ -987,7 +1075,6 @@ function renderMessage(msg) {
   }
   document.getElementById('modalDate').textContent = 'Date: ' + dateObj.toLocaleString();
 
-  // Content
   let htmlContent = msg.htmlContent || msg.content || msg.body || '';
   if (htmlContent) {
     htmlContent = htmlContent.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '').replace(/on\w+=["'][^"']*["']/gi, '');
