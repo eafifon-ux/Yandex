@@ -167,9 +167,10 @@
     margin-top: 10px;
     word-wrap: break-word;
     overflow-wrap: break-word;
-    line-height: 1.5;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    font-family: inherit;
   }
-  .modal-body img { max-width: 100%; height: auto; }
   .loading-text { text-align: center; padding: 30px; color: #888; }
 </style>
 </head>
@@ -720,7 +721,6 @@ function filterByDOYMonth(messages, month) {
 
 function applyFilters(messages) {
   let filtered = messages;
-  // Only filter if a primary filter is active AND has a value set
   if (doyActive && currentDOYMonth !== null) {
     filtered = filterByDOYMonth(filtered, currentDOYMonth);
   } else if (dosActive && currentSeason !== null) {
@@ -728,7 +728,6 @@ function applyFilters(messages) {
   } else if (domActive && currentDOMFilter !== null) {
     filtered = filterByDOM(filtered, currentDOMFilter);
   }
-  // Heptad filter only when it's the only active filter
   if (heptadActive && currentDayFilter !== null && !doyActive && !dosActive && !domActive) {
     filtered = filterByDay(filtered, currentDayFilter);
   }
@@ -972,65 +971,57 @@ function renderMessage(msg) {
     return;
   }
 
-  // Field extraction (handle nested data)
-  const subject = msg.subject || msg.Subject || msg.emailSubject || '(No subject)';
-  const from = msg.fromAddress || msg.FromAddress || msg.sender || 'Unknown';
-  const to = msg.toAddress || msg.ToAddress || msg.recipients || 'Unknown';
-  const date = parseDate(msg);
+  // Field extraction – try many possible field names
+  const subject = msg.subject || msg.Subject || msg.emailSubject || msg.title || '(No subject)';
+  const from = msg.fromAddress || msg.FromAddress || msg.sender || msg.senderAddress || msg.from || 'Unknown';
+  const to = msg.toAddress || msg.ToAddress || msg.recipients || msg.to || 'Unknown';
+
+  // Date – try many fields
+  let rawDate = msg.date || msg.receivedDate || msg.receivedTime || msg.sentDate || msg.sentTime || msg.sentDate;
+  let dateObj;
+  if (rawDate) {
+    dateObj = new Date(rawDate);
+    if (isNaN(dateObj.getTime())) {
+      if (typeof rawDate === 'string' && /^\d{13}$/.test(rawDate)) dateObj = new Date(parseInt(rawDate,10));
+      else dateObj = new Date();
+    }
+  } else {
+    dateObj = new Date();
+  }
 
   document.getElementById('modalSubject').textContent = subject;
   document.getElementById('modalFrom').textContent = 'From: ' + from;
   document.getElementById('modalTo').textContent = 'To: ' + to;
-  document.getElementById('modalDate').textContent = 'Date: ' + date.toLocaleString();
+  document.getElementById('modalDate').textContent = 'Date: ' + dateObj.toLocaleString();
 
-  // Body: prefer plain text, then HTML cleaned
-  let bodyHtml = '';
-  if (msg.content) {
-    bodyHtml = `<pre style="white-space:pre-wrap;font-family:inherit;margin:0;background:none;font-size:0.95em;">${escapeHtml(msg.content)}</pre>`;
-  } else if (msg.htmlContent) {
-    // sanitize: remove img tags, break long lines, strip dangerous tags
-    let cleaned = msg.htmlContent
-      .replace(/<img[^>]*>/gi, '[Image removed]')
-      .replace(/<script[^>]*>.*?<\/script>/gsi, '')
-      .replace(/<style[^>]*>.*?<\/style>/gsi, '')
-      .replace(/<link[^>]*>/gi, '')
-      .replace(/<meta[^>]*>/gi, '')
-      .replace(/on\w+="[^"]*"/gi, '')
-      .replace(/style\s*=\s*"[^"]*"/gi, '');
-
-    // Optionally strip all tags except a few safe ones
-    // For readability, let's just keep basic formatting:
-    // Actually better: use a DOMParser to extract text
+  // Body: prefer plain text, then HTML cleaned to text.
+  let plainText = '';
+  if (msg.content && typeof msg.content === 'string') {
+    plainText = msg.content;
+  } else if (msg.htmlContent && typeof msg.htmlContent === 'string') {
+    // Parse HTML and extract text with line breaks
     const parser = new DOMParser();
-    const doc = parser.parseFromString(cleaned, 'text/html');
-    // Remove all images (already done) and convert to plain text with line breaks
-    // But we want some structure – keep <p>, <br>, <table>, <a> etc.
-    // Remove all attributes except href
-    const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_ELEMENT, null, false);
-    let node;
-    while (node = walker.nextNode()) {
-      if (node.tagName === 'A') {
-        // keep href only
-        const href = node.getAttribute('href');
-        node.removeAttribute('style');
-        node.removeAttribute('class');
-        node.removeAttribute('id');
-        node.removeAttribute('target');
-        node.removeAttribute('rel');
-        if (href) node.setAttribute('href', href);
-      } else {
-        // remove all attributes
-        while (node.attributes.length > 0) node.removeAttribute(node.attributes[0].name);
-      }
-    }
-    // Also remove empty tags
-    // Set innerHTML
-    bodyHtml = doc.body.innerHTML;
+    const doc = parser.parseFromString(msg.htmlContent, 'text/html');
+    // Remove script/style/img
+    doc.querySelectorAll('script, style, img, meta, link').forEach(el => el.remove());
+    // Replace br, p, div, tr, li with newlines
+    doc.body.querySelectorAll('br, p, div, tr, li, h1, h2, h3, h4, h5, h6').forEach(el => {
+      el.insertAdjacentText('afterend', '\n');
+    });
+    // Get text content
+    plainText = doc.body.textContent || '';
+    // Normalize whitespace
+    plainText = plainText.replace(/\s*\n\s*/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+    // Decode HTML entities
+    const textarea = document.createElement('textarea');
+    textarea.innerHTML = plainText;
+    plainText = textarea.value;
   } else {
-    bodyHtml = '<p><em>No content</em></p>';
+    plainText = '(No content)';
   }
 
-  document.getElementById('modalBody').innerHTML = bodyHtml;
+  // Set modal body as pre with white-space pre-wrap
+  document.getElementById('modalBody').innerHTML = `<pre style="white-space:pre-wrap;font-family:inherit;margin:0;font-size:0.95em;line-height:1.6;">${escapeHtml(plainText)}</pre>`;
 }
 
 /* ===============================
