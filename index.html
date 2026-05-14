@@ -565,10 +565,12 @@ function formatDisplayTime(dateObj) {
 }
 
 function formatZuluTime(dateObj) {
-  // For modal and inbox: use full GPC+time for GPC and SUN modes
   if (timeMode === 'utc') return formatUTCTime(dateObj);
-  return formatFullGPCWithTime(dateObj);
+  if (timeMode === 'sun') return formatFullGPCWithTime(dateObj);
+  // GPC mode: date only (no time)
+  return formatDisplayTime(dateObj);
 }
+
 
 /* ===============================
    FILTER STATE
