@@ -496,6 +496,7 @@ function getGPCTime(dateObj) {
 }
 
 // ----- GPC date formatter (used in GPC mode) -----
+// ====== Replace the badge logic in formatGPC ======
 function formatGPC(gpcDate) {
   const {year,doy}=gpcDate;
   const emoji=GPC.weekEmojis[(doy-1)%7];
@@ -511,6 +512,7 @@ function formatGPC(gpcDate) {
   } else {
     core=String(doy).padStart(3,"0");
   }
+  // Badge on ALL modes when heptad is active
   if(heptad) {
     const h=GPC.heptads[doy]||{suit:0x2663,week:1};
     const suit=String.fromCodePoint(h.suit);
@@ -519,6 +521,7 @@ function formatGPC(gpcDate) {
     return `${emoji} ${year}.${core}`;
   }
 }
+
 
 // ----- SUN time formatter (time only) -----
 function formatSUNTime(dateObj) {
@@ -635,7 +638,8 @@ function showDOYFilter(){ document.getElementById("doy-filter-container").style.
 function hideDOYFilter(){ document.getElementById("doy-filter-container").style.display="none"; }
 function updateAllFilters(){
   hideWeekFilter(); hideDOMFilter(); hideDOSFilter(); hideDOYFilter();
-  if (heptadActive && currentDayFilter !== null) showWeekFilter();
+  // Show week filter only if heptad active, day selected, and DOM is NOT active
+  if (heptadActive && currentDayFilter !== null && !domActive) showWeekFilter();
   if(domActive) showDOMFilter();
   if(dosActive) showDOSFilter();
   if(doyActive) showDOYFilter();
@@ -805,8 +809,8 @@ function applyFilters(messages) {
   } else if (domActive && currentDOMFilter !== null) {
     filtered = filterByDOM(filtered, currentDOMFilter);
   }
-  // Heptad day filter: applied ALWAYS if active and a day is selected
-  if (heptadActive && currentDayFilter !== null) {
+  // Heptad day filter applied only if DOM is NOT active (to avoid conflict)
+  if (heptadActive && currentDayFilter !== null && !domActive) {
     filtered = filterByDay(filtered, currentDayFilter);
   }
   return filtered;
@@ -1202,6 +1206,46 @@ function toggleDOS() {
   }
   syncModeAndHeptad(); updateAllFilters(); updateTopBar(); updateModeButtons(); fetchZohoInbox();
 }
+// ====== Replace toggleHeptad ======
+function toggleHeptad() {
+  if (heptadActive) {
+    // Turn off heptad
+    heptadActive = false;
+    if (currentDayFilter !== null) {
+      currentDayFilter = null;
+      document.getElementById('filter-status').style.display = 'none';
+      document.querySelectorAll('.filter-day').forEach(td => td.classList.remove('active'));
+      hideWeekFilter();
+    }
+  } else {
+    // Turn on heptad
+    heptadActive = true;
+    if (domActive) {
+      // DOM is active – only set badge, do NOT show week filter or set day filter
+      // (badge will appear in formatGPC because heptad flag is true)
+    } else {
+      // No DOM: show week filter and set a default day filter if none
+      if (!currentDayFilter) {
+        const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date()));
+        const dayIdx = GPC.getDayOfWeekIndex(todayGPC.doy);
+        setDayFilter(dayIdx); // sets day, shows filter, fetches inbox
+      } else {
+        showWeekFilter();
+        fetchZohoInbox();
+      }
+    }
+  }
+  syncModeAndHeptad();
+  updateAllFilters();
+  updateTopBar();
+  updateModeButtons();
+  if (!(heptadActive && domActive)) {
+    // Fetch only if not already done by setDayFilter
+    // setDayFilter already fetches, so we avoid double fetch
+  }
+}
+
+// ====== Replace toggleDOM (already turns off heptad, but ensure it also turns off heptad badge logic) ======
 function toggleDOM() {
   if (domActive) {
     domActive = false;
@@ -1209,10 +1253,16 @@ function toggleDOM() {
     clearDOMFilter();
   } else {
     domActive = true;
+    // Turn off heptad if active
     if (heptadActive) {
       heptadActive = false;
-      currentDayFilter = null;
-      clearDayFilter();
+      if (currentDayFilter !== null) {
+        currentDayFilter = null;
+        document.getElementById('filter-status').style.display = 'none';
+        document.querySelectorAll('.filter-day').forEach(td => td.classList.remove('active'));
+        hideWeekFilter();
+      }
+      document.getElementById('heptad-btn').classList.remove('active');
     }
     if (!currentDOMFilter) {
       const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date()));
@@ -1227,32 +1277,6 @@ function toggleDOM() {
   fetchZohoInbox();
 }
 
-function toggleHeptad() {
-  if (heptadActive) {
-    heptadActive = false;
-    if (currentDayFilter !== null) {
-      currentDayFilter = null;
-      document.getElementById('filter-status').style.display = 'none';
-      document.querySelectorAll('.filter-day').forEach(td => td.classList.remove('active'));
-      hideWeekFilter();
-    }
-  } else {
-    heptadActive = true;
-    // Always set today's day if none selected
-    if (!currentDayFilter) {
-      const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date()));
-      const dayIdx = GPC.getDayOfWeekIndex(todayGPC.doy);
-      setDayFilter(dayIdx);   // this shows filter-status and fetches inbox
-    } else {
-      showWeekFilter();
-      fetchZohoInbox();
-    }
-  }
-  syncModeAndHeptad();
-  updateAllFilters();  // ensure week filter is shown if active
-  updateTopBar();
-  updateModeButtons();
-}
 
 // Triple time toggle
 function toggleTimeMode() {
