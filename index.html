@@ -145,6 +145,7 @@
     position: relative;
     max-height: 90vh;
     overflow-y: auto;
+    overflow-x: hidden;   /* prevent horizontal scroll */
   }
   .modal-close {
     position: absolute;
@@ -162,19 +163,17 @@
   .modal-subject { font-size: 1.3em; font-weight: bold; color: #1e6cff; margin: 0 0 6px; }
   .modal-from, .modal-to, .modal-date { font-size: .9em; color: #555; margin-bottom: 2px; }
   .modal-body {
-  border-top: 1px solid #e0e0e0;
-  padding-top: 15px;
-  margin-top: 10px;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-  word-break: break-word;        /* ← add this */
-  line-height: 1.6;
-  white-space: pre-wrap;
-  font-family: inherit;
-  overflow-x: hidden;            /* ← add this */
-}
-
-
+    border-top: 1px solid #e0e0e0;
+    padding-top: 15px;
+    margin-top: 10px;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    font-family: inherit;
+    overflow-x: hidden;
+  }
   .loading-text { text-align: center; padding: 30px; color: #888; }
 </style>
 </head>
@@ -206,7 +205,7 @@
     <button id="heptad-btn">Heptad</button>
   </div>
 
-  <!-- Filter containers -->
+  <!-- Week Day Filter -->
   <div id="week-filter-container">
     <h4>Week Day Filter</h4>
     <table class="filter-table">
@@ -244,6 +243,7 @@
     </div>
   </div>
 
+  <!-- DOM Filter -->
   <div id="dom-filter-container">
     <h4>Day of Month Filter</h4>
     <table class="filter-table" id="dom-calendar">
@@ -260,6 +260,7 @@
     </div>
   </div>
 
+  <!-- DOS Filter -->
   <div id="dos-filter-container">
     <h4>Day of Season Filter</h4>
     <table class="filter-table">
@@ -284,6 +285,7 @@
     </div>
   </div>
 
+  <!-- DOY Filter -->
   <div id="doy-filter-container">
     <h4>Day of Year Filter</h4>
     <table class="filter-table">
@@ -489,17 +491,13 @@ function formatGPC(gpcDate) {
 }
 
 /* ===============================
-   FILTER STATE – saved in OAuth 'state' param
+   FILTER STATE
 =============================== */
 function encodeFilterState() {
-  const state = {
-    doyActive, dosActive, domActive, heptadActive,
-    currentDayFilter, currentDOMFilter, currentSeason, currentDOYMonth
-  };
+  const state = { doyActive, dosActive, domActive, heptadActive, currentDayFilter, currentDOMFilter, currentSeason, currentDOYMonth };
   const json = JSON.stringify(state);
   return btoa(json).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
-
 function decodeFilterState(encoded) {
   try {
     const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
@@ -507,7 +505,6 @@ function decodeFilterState(encoded) {
     return JSON.parse(json);
   } catch(e) { return null; }
 }
-
 function restoreFilterFromState() {
   const urlParams = new URLSearchParams(window.location.search);
   const stateParam = urlParams.get('state');
@@ -529,7 +526,7 @@ function restoreFilterFromState() {
 }
 
 /* ===============================
-   GLOBAL LOGIN FUNCTION
+   GLOBAL LOGIN
 =============================== */
 const CLIENT_ID="1000.KH21SIV5VTY4USU27F4S5E2WKAYUJB";
 const REDIRECT_URI="https://eafifon-ux.github.io/Yandex/";
@@ -544,14 +541,13 @@ function zohoLogin() {
 }
 
 /* ===============================
-   UPDATE UI FUNCTIONS
+   UI Functions
 =============================== */
 function updateTopBar() {
   const days=GPC.daysFromGregorian(new Date());
   const g=GPC.gpcFromDays(days);
   document.getElementById("gpc-display").textContent=formatGPC(g);
 }
-
 function showWeekFilter(){ document.getElementById("week-filter-container").style.display="block"; }
 function hideWeekFilter(){ document.getElementById("week-filter-container").style.display="none"; }
 function showDOMFilter(){ document.getElementById("dom-filter-container").style.display="block"; }
@@ -560,7 +556,6 @@ function showDOSFilter(){ document.getElementById("dos-filter-container").style.
 function hideDOSFilter(){ document.getElementById("dos-filter-container").style.display="none"; }
 function showDOYFilter(){ document.getElementById("doy-filter-container").style.display="block"; }
 function hideDOYFilter(){ document.getElementById("doy-filter-container").style.display="none"; }
-
 function updateAllFilters(){
   hideWeekFilter(); hideDOMFilter(); hideDOSFilter(); hideDOYFilter();
   if(heptadActive) showWeekFilter();
@@ -597,7 +592,6 @@ function highlightTodayDOM(){
     if(Number(td.dataset.day)===md.day){ td.classList.add('today'); }
   });
 }
-
 function setDayFilter(idx){
   currentDayFilter=idx;
   updateFilterTableUI();
@@ -613,7 +607,6 @@ function clearDayFilter(){
 }
 function prevDay(){ const n=currentDayFilter===null?0:(currentDayFilter-1+7)%7; setDayFilter(n); }
 function nextDay(){ const n=currentDayFilter===null?0:(currentDayFilter+1)%7; setDayFilter(n); }
-
 function setDOMFilter(day){
   currentDOMFilter=day;
   updateDOMUI();
@@ -629,14 +622,12 @@ function clearDOMFilter(){
 }
 function prevDOM(){ const n=currentDOMFilter===null?1:(currentDOMFilter===1?31:currentDOMFilter-1); setDOMFilter(n); }
 function nextDOM(){ const n=currentDOMFilter===null?1:(currentDOMFilter===31?1:currentDOMFilter+1); setDOMFilter(n); }
-
 function updateDOMUI(){
   document.querySelectorAll('#dom-calendar-body td[data-day]').forEach(td=>{
     td.classList.remove('active');
     if(currentDOMFilter!==null && Number(td.dataset.day)===currentDOMFilter) td.classList.add('active');
   });
 }
-
 function setSeason(s){
   currentSeason=s;
   document.querySelectorAll('.dos-season').forEach(td=>{ td.classList.remove('active'); if(Number(td.dataset.season)===s) td.classList.add('active'); });
@@ -652,7 +643,6 @@ function clearDOSFilter(){
 }
 function prevSeason(){ const s=currentSeason===null?1:(currentSeason===1?4:currentSeason-1); setSeason(s); }
 function nextSeason(){ const s=currentSeason===null?1:(currentSeason===4?1:currentSeason+1); setSeason(s); }
-
 function setDOYMonth(m){
   currentDOYMonth=m;
   document.querySelectorAll('.doy-month').forEach(td=>{ td.classList.remove('active'); if(Number(td.dataset.month)===m) td.classList.add('active'); });
@@ -668,7 +658,6 @@ function clearDOYFilter(){
 }
 function prevDOY(){ const m=currentDOYMonth===null?1:(currentDOYMonth===1?12:currentDOYMonth-1); setDOYMonth(m); }
 function nextDOY(){ const m=currentDOYMonth===null?1:(currentDOYMonth===12?1:currentDOYMonth+1); setDOYMonth(m); }
-
 function updateFilterTableUI(){
   document.querySelectorAll('.filter-day').forEach(td=>{
     td.classList.remove('active');
@@ -680,11 +669,17 @@ function updateFilterTableUI(){
    APPLY FILTERS & INBOX
 =============================== */
 function parseDate(msg) {
-  let raw = msg.date || msg.receivedTime || msg.receivedDate || msg.sentDate;
+  let raw = msg.date || msg.receivedTime || msg.receivedDate || msg.sentDate || msg.sentTime || msg.sentDateInGMT;
   if (!raw) return new Date();
   const d = new Date(raw);
   if (!isNaN(d.getTime())) return d;
-  if (typeof raw === 'string' && /^\d{13}$/.test(raw)) return new Date(parseInt(raw, 10));
+  if (typeof raw === 'string' && /^\d{10,13}$/.test(raw)) {
+    const ts = parseInt(raw, 10);
+    const d2 = new Date(ts < 100000000000 ? ts * 1000 : ts);
+    if (!isNaN(d2.getTime())) return d2;
+  }
+  const parsed = Date.parse(raw);
+  if (!isNaN(parsed)) return new Date(parsed);
   return new Date();
 }
 
@@ -725,16 +720,10 @@ function filterByDOYMonth(messages, month) {
 
 function applyFilters(messages) {
   let filtered = messages;
-  if (doyActive && currentDOYMonth !== null) {
-    filtered = filterByDOYMonth(filtered, currentDOYMonth);
-  } else if (dosActive && currentSeason !== null) {
-    filtered = filterBySeason(filtered, currentSeason);
-  } else if (domActive && currentDOMFilter !== null) {
-    filtered = filterByDOM(filtered, currentDOMFilter);
-  }
-  if (heptadActive && currentDayFilter !== null && !doyActive && !dosActive && !domActive) {
-    filtered = filterByDay(filtered, currentDayFilter);
-  }
+  if (doyActive && currentDOYMonth !== null) filtered = filterByDOYMonth(filtered, currentDOYMonth);
+  else if (dosActive && currentSeason !== null) filtered = filterBySeason(filtered, currentSeason);
+  else if (domActive && currentDOMFilter !== null) filtered = filterByDOM(filtered, currentDOMFilter);
+  if (heptadActive && currentDayFilter !== null && !doyActive && !dosActive && !domActive) filtered = filterByDay(filtered, currentDayFilter);
   return filtered;
 }
 
@@ -753,8 +742,8 @@ function renderInbox(messages) {
     const gpc = formatGPC(GPC.gpcFromDays(GPC.daysFromGregorian(date)));
     const snippet = msg.summary || msg.snippet || "";
     html += `
-      <div class="mail" 
-           data-message-id="${escapeHtml(msg.messageId || '')}" 
+      <div class="mail"
+           data-message-id="${escapeHtml(msg.messageId || '')}"
            data-folder-id="${escapeHtml(msg.folderId || '')}"
            style="cursor:pointer;">
         <div class="mail-subject">${escapeHtml(sub)}</div>
@@ -769,8 +758,8 @@ function renderInbox(messages) {
   inboxDiv.innerHTML = html;
 }
 
-function formatGregorian(d){const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${dd}`;}
-function escapeHtml(t){const d=document.createElement('div'); d.textContent=t; return d.innerHTML;}
+function formatGregorian(d){ const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${dd}`; }
+function escapeHtml(t){ const d=document.createElement('div'); d.textContent=t; return d.innerHTML; }
 
 async function fetchZohoInbox() {
   const token=getToken();
@@ -826,7 +815,6 @@ function getToken() {
   const hash=window.location.hash.substring(1);
   return new URLSearchParams(hash).get("access_token");
 }
-
 let cachedAccountId=null;
 async function getAccountId() {
   if(cachedAccountId) return cachedAccountId;
@@ -834,16 +822,13 @@ async function getAccountId() {
   if(!token) return null;
   try {
     const proxy="https://corsproxy.io/?";
-    const r=await fetch(proxy+encodeURIComponent("https://mail.zoho.in/api/accounts"), {
-      headers:{Authorization:"Zoho-oauthtoken "+token}
-    });
+    const r=await fetch(proxy+encodeURIComponent("https://mail.zoho.in/api/accounts"), { headers:{Authorization:"Zoho-oauthtoken "+token} });
     if(!r.ok) return null;
     const d=await r.json();
     if(d.data&&d.data.length>0) cachedAccountId=d.data[0].accountId;
     return cachedAccountId;
   } catch(e){return null;}
 }
-
 async function loadProfile(){
   const token=getToken();
   if(!token) return;
@@ -872,7 +857,6 @@ function openEmailModal(messageId, folderId) {
   document.getElementById('modalBody').innerHTML = '<div class="loading-text">Loading message…</div>';
   fetchFullMessage(messageId, folderId);
 }
-
 function closeEmailModal() {
   document.getElementById('emailModal').classList.remove('active');
 }
@@ -882,24 +866,19 @@ async function fetchFullMessage(messageId, folderId) {
   if (!token) return;
   const accountId = await getAccountId();
   if (!accountId) return;
-
   if (!messageId) {
     document.getElementById('modalBody').innerHTML = `<div class="error-message">No message ID found.</div>`;
     return;
   }
-
   const proxy = "https://corsproxy.io/?";
   let errors = [];
-
   const patterns = [
     `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}`,
     `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}/content`,
     folderId ? `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}` : null,
     folderId ? `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}/content` : null
   ].filter(Boolean);
-
   for (const url of patterns) {
-    // direct
     try {
       const directRes = await fetch(url, { headers: { Authorization: "Zoho-oauthtoken " + token } }).catch(e => null);
       if (directRes && directRes.ok) {
@@ -915,12 +894,8 @@ async function fetchFullMessage(messageId, folderId) {
     } catch(e) {
       errors.push(`Direct error: ${url.replace(token, 'TOKEN')} → ${e.message}`);
     }
-
-    // proxy
     try {
-      const res = await fetch(proxy + encodeURIComponent(url), {
-        headers: { Authorization: "Zoho-oauthtoken " + token }
-      });
+      const res = await fetch(proxy + encodeURIComponent(url), { headers: { Authorization: "Zoho-oauthtoken " + token } });
       if (res.ok) {
         const data = await res.json();
         renderMessage(data.data);
@@ -936,8 +911,6 @@ async function fetchFullMessage(messageId, folderId) {
       errors.push(`Proxy error: ${maskedUrl} → ${e.message}`);
     }
   }
-
-  // All failed – show error with copy
   const errorText = errors.join('\n');
   document.getElementById('modalBody').innerHTML = `
     <div class="error-message">
@@ -950,45 +923,45 @@ async function fetchFullMessage(messageId, folderId) {
       <button class="copy-btn" onclick="copyErrorToClipboard()">📋 Copy error details</button>
     </div>`;
 }
-
 function copyErrorToClipboard() {
   const content = document.querySelector('#modalBody .error-message').innerText;
-  navigator.clipboard.writeText(content).then(() => {
-    alert('Copied to clipboard!');
-  }).catch(() => {
+  navigator.clipboard.writeText(content).then(() => { alert('Copied!'); }).catch(() => {
     const textArea = document.createElement('textarea');
     textArea.value = content;
     document.body.appendChild(textArea);
     textArea.select();
     document.execCommand('copy');
     document.body.removeChild(textArea);
-    alert('Copied to clipboard!');
+    alert('Copied!');
   });
 }
 
 /* ===============================
-   renderMessage – robust field extraction & HTML cleanup
+   renderMessage – robust extraction + raw debug
 =============================== */
 function renderMessage(msg) {
   if (!msg) {
-    document.getElementById('modalBody').innerHTML = `<div class="error-message">Message not found.</div>`;
+    document.getElementById('modalBody').innerHTML = '<div class="error-message">Message not found.</div>';
     return;
   }
+  // Raw JSON debug
+  const rawHtml = '<pre style="white-space:pre-wrap;font-family:monospace;font-size:0.9em;background:#f5f5f5;padding:12px;border-radius:6px;max-height:500px;overflow:auto;">' + escapeHtml(JSON.stringify(msg, null, 2)) + '</pre>';
 
-  // ----- Subject -----
+  // Subject
   const subject = msg.subject || msg.Subject || msg.emailSubject || msg.title || '(No subject)';
   document.getElementById('modalSubject').textContent = subject;
 
-  // ----- From (handle both string and object) -----
+  // From
   let from = 'Unknown';
   const fromField = msg.fromAddress || msg.FromAddress || msg.sender || msg.senderAddress || msg.from;
   if (fromField) {
     if (typeof fromField === 'string') from = fromField;
-    else if (typeof fromField === 'object') from = fromField.emailAddress || fromField.name || JSON.stringify(fromField);
+    else if (typeof fromField === 'object') from = fromField.emailAddress || fromField.name || fromField.displayName || JSON.stringify(fromField);
   }
+  if (from === 'Unknown' && msg.mailFields) from = msg.mailFields.fromAddress || msg.mailFields.FromAddress || 'Unknown';
   document.getElementById('modalFrom').textContent = 'From: ' + from;
 
-  // ----- To (handle string, array, object) -----
+  // To
   let to = 'Unknown';
   const toField = msg.toAddress || msg.ToAddress || msg.recipients || msg.to;
   if (toField) {
@@ -999,133 +972,87 @@ function renderMessage(msg) {
         if (typeof item === 'object') return item.emailAddress || item.name || JSON.stringify(item);
         return '';
       }).filter(Boolean).join(', ');
-    } else if (typeof toField === 'object') {
-      to = toField.emailAddress || toField.name || JSON.stringify(toField);
-    }
+    } else if (typeof toField === 'object') to = toField.emailAddress || toField.name || JSON.stringify(toField);
   }
+  if (to === 'Unknown' && msg.mailFields) to = msg.mailFields.toAddress || msg.mailFields.ToAddress || 'Unknown';
   document.getElementById('modalTo').textContent = 'To: ' + to;
 
-  // ----- Date (reuse inbox parsing) -----
-  const dateObj = parseDate(msg);
+  // Date – use more fields
+  let dateObj = new Date();
+  const rawDate = msg.date || msg.receivedDate || msg.receivedTime || msg.sentDate || msg.sentTime || msg.sentDateInGMT;
+  if (rawDate) {
+    dateObj = new Date(rawDate);
+    if (isNaN(dateObj.getTime()) && /^\d{13}$/.test(rawDate)) dateObj = new Date(parseInt(rawDate, 10));
+    if (isNaN(dateObj.getTime())) { const parsed = Date.parse(rawDate); if (!isNaN(parsed)) dateObj = new Date(parsed); }
+  }
   document.getElementById('modalDate').textContent = 'Date: ' + dateObj.toLocaleString();
 
-  // ----- Content (preserve HTML nicely) -----
-  let htmlContent = '';
-  if (msg.htmlContent && typeof msg.htmlContent === 'string') {
-    htmlContent = msg.htmlContent;
-  } else if (msg.content && typeof msg.content === 'string') {
-    htmlContent = msg.content;
-  } else if (msg.body && typeof msg.body === 'string') {
-    htmlContent = msg.body;
-  }
-
+  // Content
+  let htmlContent = msg.htmlContent || msg.content || msg.body || '';
   if (htmlContent) {
-    // Sanitize: remove scripts and inline event handlers
-    htmlContent = htmlContent
-      .replace(/<script[\s\S]*?<\/script>/gi, '')
-      .replace(/<style[\s\S]*?<\/style>/gi, '')
-      .replace(/on\w+=["'][^"']*["']/gi, '');
-    document.getElementById('modalBody').innerHTML = `<div style="line-height:1.65; font-size:15.2px; padding:8px 4px;">${htmlContent}</div>`;
+    htmlContent = htmlContent.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '').replace(/on\w+=["'][^"']*["']/gi, '');
+    document.getElementById('modalBody').innerHTML = `
+      <div style="border-bottom:1px solid #eee;padding:8px;margin-bottom:12px;background:#fffbe6;font-size:0.85em;">
+        ⚠️ If From/To/Date look wrong, the raw message data is below 🔽
+      </div>
+      <div style="line-height:1.65;font-size:15.2px;padding:8px 4px;">${htmlContent}</div>
+      <hr style="margin:20px 0;">
+      <details>
+        <summary style="cursor:pointer;color:#1e6cff;font-weight:bold;">📦 Raw API Response</summary>
+        ${rawHtml}
+      </details>`;
   } else {
-    // Plain text fallback with nice styling
     const plainText = msg.content || msg.textContent || msg.summary || msg.snippet || '(No content)';
-    document.getElementById('modalBody').innerHTML = `<pre style="white-space:pre-wrap; font-family:inherit; margin:0; font-size:0.95em; line-height:1.6; background:#f8f9fa; padding:15px; border-radius:8px;">${escapeHtml(plainText)}</pre>`;
+    document.getElementById('modalBody').innerHTML = `
+      <div style="border-bottom:1px solid #eee;padding:8px;margin-bottom:12px;background:#fffbe6;font-size:0.85em;">
+        ⚠️ If From/To/Date look wrong, the raw message data is below 🔽
+      </div>
+      <pre style="white-space:pre-wrap;font-family:inherit;margin:0;font-size:0.95em;line-height:1.6;background:#f8f9fa;padding:15px;border-radius:8px;">${escapeHtml(plainText)}</pre>
+      <hr style="margin:20px 0;">
+      <details>
+        <summary style="cursor:pointer;color:#1e6cff;font-weight:bold;">📦 Raw API Response</summary>
+        ${rawHtml}
+      </details>`;
   }
 }
-
 
 /* ===============================
    TOGGLE HANDLERS
 =============================== */
 function toggleDOY() {
-  if (doyActive) {
-    doyActive = false;
-    currentDOYMonth = null;
-    clearDOYFilter();
-  } else {
+  if (doyActive) { doyActive = false; currentDOYMonth = null; clearDOYFilter(); }
+  else {
     doyActive = true;
-    if (dosActive) {
-      dosActive = false;
-      currentSeason = null;
-      clearDOSFilter();
-    }
-    if (!currentDOYMonth) {
-      const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date()));
-      setDOYMonth(getGPCMonthFromDoy(todayGPC.doy));
-    }
+    if (dosActive) { dosActive = false; currentSeason = null; clearDOSFilter(); }
+    if (!currentDOYMonth) { const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date())); setDOYMonth(getGPCMonthFromDoy(todayGPC.doy)); }
   }
-  syncModeAndHeptad();
-  updateAllFilters();
-  updateTopBar();
-  updateModeButtons();
-  fetchZohoInbox();
+  syncModeAndHeptad(); updateAllFilters(); updateTopBar(); updateModeButtons(); fetchZohoInbox();
 }
-
 function toggleDOS() {
-  if (dosActive) {
-    dosActive = false;
-    currentSeason = null;
-    clearDOSFilter();
-  } else {
+  if (dosActive) { dosActive = false; currentSeason = null; clearDOSFilter(); }
+  else {
     dosActive = true;
-    if (doyActive) {
-      doyActive = false;
-      currentDOYMonth = null;
-      clearDOYFilter();
-    }
-    if (!currentSeason) {
-      const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date()));
-      const s = Math.floor((todayGPC.doy-1)/91)+1;
-      setSeason(s);
-    }
+    if (doyActive) { doyActive = false; currentDOYMonth = null; clearDOYFilter(); }
+    if (!currentSeason) { const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date())); const s = Math.floor((todayGPC.doy-1)/91)+1; setSeason(s); }
   }
-  syncModeAndHeptad();
-  updateAllFilters();
-  updateTopBar();
-  updateModeButtons();
-  fetchZohoInbox();
+  syncModeAndHeptad(); updateAllFilters(); updateTopBar(); updateModeButtons(); fetchZohoInbox();
 }
-
 function toggleDOM() {
-  if (domActive) {
-    domActive = false;
-    currentDOMFilter = null;
-    clearDOMFilter();
-  } else {
+  if (domActive) { domActive = false; currentDOMFilter = null; clearDOMFilter(); }
+  else {
     domActive = true;
-    if (!currentDOMFilter) {
-      const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date()));
-      const md = getGPCMonthDay(todayGPC.doy);
-      setDOMFilter(md.day);
-    }
+    if (!currentDOMFilter) { const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date())); const md = getGPCMonthDay(todayGPC.doy); setDOMFilter(md.day); }
   }
-  syncModeAndHeptad();
-  updateAllFilters();
-  updateTopBar();
-  updateModeButtons();
-  fetchZohoInbox();
+  syncModeAndHeptad(); updateAllFilters(); updateTopBar(); updateModeButtons(); fetchZohoInbox();
 }
-
 function toggleHeptad() {
-  if (heptadActive) {
-    heptadActive = false;
-    currentDayFilter = null;
-    clearDayFilter();
-  } else {
+  if (heptadActive) { heptadActive = false; currentDayFilter = null; clearDayFilter(); }
+  else {
     heptadActive = true;
-    if (!currentDayFilter) {
-      const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date()));
-      const dayIdx = GPC.getDayOfWeekIndex(todayGPC.doy);
-      setDayFilter(dayIdx);
-    }
+    if (!currentDayFilter) { const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date())); const dayIdx = GPC.getDayOfWeekIndex(todayGPC.doy); setDayFilter(dayIdx); }
   }
-  syncModeAndHeptad();
-  updateAllFilters();
-  updateTopBar();
-  updateModeButtons();
-  fetchZohoInbox();
+  syncModeAndHeptad(); updateAllFilters(); updateTopBar(); updateModeButtons(); fetchZohoInbox();
 }
-
 function updateModeButtons() {
   document.querySelectorAll('[data-mode]').forEach(btn => {
     const m = btn.dataset.mode;
@@ -1141,9 +1068,7 @@ function updateModeButtons() {
 =============================== */
 document.addEventListener('DOMContentLoaded',()=>{
   generateDOMCalendar();
-
   const restored = restoreFilterFromState();
-
   if (restored) {
     updateModeButtons();
     updateAllFilters();
@@ -1163,60 +1088,36 @@ document.addEventListener('DOMContentLoaded',()=>{
     updateAllFilters();
     updateTopBar();
   }
-
   loadProfile();
-
-  const loginDiv = document.getElementById('zoho-login');
-  loginDiv.innerHTML = '<button onclick="zohoLogin()">Login with Zoho</button>';
-
+  document.getElementById('zoho-login').innerHTML = '<button onclick="zohoLogin()">Login with Zoho</button>';
   document.querySelector('[data-mode="DOY"]').addEventListener('click', toggleDOY);
   document.querySelector('[data-mode="DOS"]').addEventListener('click', toggleDOS);
   document.querySelector('[data-mode="DOM"]').addEventListener('click', toggleDOM);
   document.getElementById('heptad-btn').addEventListener('click', toggleHeptad);
-
   document.getElementById('prev-day-btn').addEventListener('click',prevDay);
   document.getElementById('next-day-btn').addEventListener('click',nextDay);
   document.querySelector('#filter-status .filter-remove').addEventListener('click',clearDayFilter);
-
   document.getElementById('prev-dom-btn').addEventListener('click',prevDOM);
   document.getElementById('next-dom-btn').addEventListener('click',nextDOM);
   document.querySelector('#dom-filter-status .filter-remove').addEventListener('click',clearDOMFilter);
-
   document.getElementById('prev-dos-btn').addEventListener('click',prevSeason);
   document.getElementById('next-dos-btn').addEventListener('click',nextSeason);
   document.querySelector('#dos-filter-status .filter-remove').addEventListener('click',clearDOSFilter);
-
   document.getElementById('prev-doy-btn').addEventListener('click',prevDOY);
   document.getElementById('next-doy-btn').addEventListener('click',nextDOY);
   document.querySelector('#doy-filter-status .filter-remove').addEventListener('click',clearDOYFilter);
-
-  document.querySelectorAll('.dos-season').forEach(td=>{
-    td.addEventListener('click',()=>setSeason(Number(td.dataset.season)));
-  });
-  document.querySelectorAll('.doy-month').forEach(td=>{
-    td.addEventListener('click',()=>setDOYMonth(Number(td.dataset.month)));
-  });
-
+  document.querySelectorAll('.dos-season').forEach(td=>{ td.addEventListener('click',()=>setSeason(Number(td.dataset.season))); });
+  document.querySelectorAll('.doy-month').forEach(td=>{ td.addEventListener('click',()=>setDOYMonth(Number(td.dataset.month))); });
   document.getElementById('inbox').addEventListener('click', function(e) {
     const mailDiv = e.target.closest('.mail');
     if (!mailDiv) return;
     const messageId = mailDiv.dataset.messageId;
     const folderId = mailDiv.dataset.folderId;
-    if (messageId) {
-      openEmailModal(messageId, folderId);
-    }
+    if (messageId) openEmailModal(messageId, folderId);
   });
-
   document.getElementById('modalCloseBtn').addEventListener('click', closeEmailModal);
-  document.getElementById('emailModal').addEventListener('click', function(e) {
-    if (e.target === this) closeEmailModal();
-  });
-  document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape' && document.getElementById('emailModal').classList.contains('active')) {
-      closeEmailModal();
-    }
-  });
-
+  document.getElementById('emailModal').addEventListener('click', function(e) { if (e.target === this) closeEmailModal(); });
+  document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && document.getElementById('emailModal').classList.contains('active')) closeEmailModal(); });
   updateAllFilters();
   updateTopBar();
   setInterval(updateTopBar,10000);
