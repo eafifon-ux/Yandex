@@ -1238,14 +1238,47 @@ async function handleSend() {
 async function markAsRead(messageId, folderId, read = true) {
   const token = getToken();
   const accountId = await getAccountId();
-  if (!token || !accountId) return showModalStatus('❌ Missing token or account ID');
+  if (!token || !accountId) { alert('Missing token or account ID'); return; }
 
   const attempts = [];
-  const proxies = [null, 'https://corsproxy.io/?'];
+  const proxies = [null, 'https://api.allorigins.win/raw?url=']; // Changed proxy – PUT/PATCH friendly
+
   const endpoints = [
-    { url: `https://mail.zoho.in/api/accounts/${accountId}/messages/actions/markAsRead`, method: 'POST', body: { messageIds: [messageId], folderId, read } },
-    { url: `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}`, method: 'PUT', body: { read } },
-    { url: `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}`, method: 'PUT', body: { read } }
+    // 1) Action endpoint with corrected payload (use "read" as a boolean under "markAsRead"?)
+    {
+      url: `https://mail.zoho.in/api/accounts/${accountId}/messages/actions/markAsRead`,
+      method: 'POST',
+      body: { messageIds: [messageId], folderId, markAsRead: read }  // try "markAsRead" key
+    },
+    // 2) Action endpoint with "status" key
+    {
+      url: `https://mail.zoho.in/api/accounts/${accountId}/messages/actions/markAsRead`,
+      method: 'POST',
+      body: { messageIds: [messageId], folderId, status: read ? 'read' : 'unread' }
+    },
+    // 3) Single message – try PATCH instead of PUT
+    {
+      url: `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}`,
+      method: 'PATCH',
+      body: { read }
+    },
+    // 4) Folder‑scoped with PATCH
+    {
+      url: `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}`,
+      method: 'PATCH',
+      body: { read }
+    },
+    // 5) Original endpoints with PUT for completeness
+    {
+      url: `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}`,
+      method: 'PUT',
+      body: { read }
+    },
+    {
+      url: `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}`,
+      method: 'PUT',
+      body: { read }
+    }
   ];
 
   for (const ep of endpoints) {
@@ -1258,7 +1291,7 @@ async function markAsRead(messageId, folderId, read = true) {
           body: JSON.stringify(ep.body)
         });
         if (res.ok) {
-          attempts.push(`✅ ${ep.method} OK`);
+          attempts.push(`✅ ${ep.method} OK (${proxy ? 'proxy' : 'direct'})`);
           return; // success
         }
         const err = await res.text();
@@ -1269,9 +1302,7 @@ async function markAsRead(messageId, folderId, read = true) {
     }
   }
 
-  // Show details in modal
-  const parts = attempts.map(a => a.replace('❌','').trim()).join(' | ');
-  showModalStatus(`❌ Failed: ${parts}`, true);
+  alert('All attempts:\n' + attempts.join('\n'));
 }
 
 
