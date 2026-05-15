@@ -226,6 +226,20 @@
   font-size: 0.9em;
 }
 
+/* Privacy mode – blacks out sender/recipient fields */
+body.privacy-mode .mail-sender,
+body.privacy-mode #to,
+body.privacy-mode #subject,
+body.privacy-mode #body,
+body.privacy-mode .modal-from,
+body.privacy-mode .modal-to,
+body.privacy-mode .mail-from {
+  background: #000 !important;
+  color: #000 !important;
+  -webkit-text-fill-color: black;
+  caret-color: #000;
+}
+
   
 </style>
 </head>
@@ -482,6 +496,8 @@ let dosActive = false;
 let domActive = false;
 let heptadActive = false;
 let timeMode = 'gpc';  // 'gpc', 'utc', 'sun'
+let privacyMode = false;   // false = normal, true = blacked out
+
 
 function getMode() {
   if (doyActive) return 'DOY';
@@ -1472,6 +1488,15 @@ function toggleTimeMode() {
   fetchZohoInbox();
 }
 
+function togglePrivacyMode() {
+  privacyMode = !privacyMode;
+  document.body.classList.toggle('privacy-mode', privacyMode);
+  // Update top bar visual cue (optional)
+  const gpcd = document.getElementById('gpc-display');
+  gpcd.style.opacity = privacyMode ? '0.5' : '1';
+}
+
+
 
 function updateModeButtons() {
   document.querySelectorAll('[data-mode]').forEach(btn => {
@@ -1545,6 +1570,11 @@ document.addEventListener('DOMContentLoaded',()=>{
   updateAllFilters();
   updateTopBar();
   setInterval(updateTopBar,10000);
+  
+document.getElementById('gpc-display').style.cursor = 'pointer';
+document.getElementById('gpc-display').title = 'Click to toggle privacy mode';
+document.getElementById('gpc-display').addEventListener('click', togglePrivacyMode);
+
 });
 </script>
 </body>
