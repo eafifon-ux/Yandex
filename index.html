@@ -310,6 +310,11 @@ body.privacy-mode .mail-from {
 }
 
 /* Remove or comment out the old .mail.unread rule – it's replaced */
+/* Override inline styles for modal checkbox checked state */
+#modalReadCheck:checked {
+  background: #1e6cff !important;
+  border-color: #1e6cff !important;
+}
 
   
 </style>
@@ -495,10 +500,10 @@ body.privacy-mode .mail-from {
    <div id="modalContent">
   <!-- Read/Unread toggle -->
 <div style="display:flex; justify-content:flex-end; align-items:center; margin-bottom:8px;">
-  <label style="font-size:0.85em; color:#888; margin-right:6px; cursor:pointer;" for="modalReadCheck">Read</label>
-  <input type="checkbox" id="modalReadCheck" class="read-check" checked
+  <input type="checkbox" id="modalReadCheck" class="read-check"
          style="width:16px; height:16px; border-radius:50%; border:2px solid #999; background:white; cursor:pointer; appearance:none; -webkit-appearance:none; display:inline-block; margin:0; transition:background 0.15s; position:static;">
 </div>
+
 
 
       <div class="modal-header">
@@ -1174,28 +1179,30 @@ async function handleSend() {
 }
 
 async function markAsRead(messageId, folderId, read = true) {
-  var token = getToken();
+  const token = getToken();
   if (!token) return;
+  const accountId = await getAccountId();
+  if (!accountId) return;
 
-  getAccountId().then(function(accountId) {
-    if (!accountId) return;
+  const proxy = "https://corsproxy.io/?";
+  const url = `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}/status`;
+  const payload = { read };
 
-    var proxy = "https://corsproxy.io/?";
-    var url = "https://mail.zoho.in/api/accounts/" + accountId + "/messages/" + messageId + "/status";
-    var payload = { read: read };
-
-    fetch(proxy + encodeURIComponent(url), {
+  try {
+    const res = await fetch(proxy + encodeURIComponent(url), {
       method: 'PUT',
       headers: {
         'Authorization': 'Zoho-oauthtoken ' + token,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(payload)
-    }).catch(function(e) {
-      console.warn('Failed to mark as read/unread:', e);
     });
-  });
+    if (!res.ok) console.warn('markAsRead failed', res.status);
+  } catch(e) {
+    console.warn('markAsRead error:', e);
+  }
 }
+
 
 function updateModalCheckbox() {
   const modalCheck = document.getElementById('modalReadCheck');
@@ -1258,14 +1265,15 @@ function openEmailModal(messageId, folderId) {
     updateModalCheckbox();
 
     // If it's unread, mark as read on Zoho and update UI
-    if (stored.status === "0") {
-      markAsRead(messageId, folderId).then(() => {
-        stored.status = "1";   // update local copy
-        const wrapper = document.querySelector(`.mail-wrapper[data-message-id="${messageId}"]`);
-if (wrapper) wrapper.classList.remove('unread');
+   if (stored.status === "0") {
+  markAsRead(messageId, folderId).then(() => {
+    stored.status = "1";
+    const wrapper = document.querySelector(`.mail-wrapper[data-message-id="${messageId}"]`);
+    if (wrapper) wrapper.classList.remove('unread');
+    updateModalCheckbox();   // <-- add this line
+  }).catch(e => console.warn(e));
+}
 
-      }).catch(e => console.warn(e));
-    }
   } else {
     fetchFullMessage(messageId, folderId);
   }
