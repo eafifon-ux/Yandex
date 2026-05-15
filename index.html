@@ -1241,55 +1241,35 @@ async function markAsRead(messageId, folderId, read = true) {
   if (!token || !accountId) { showModalStatus('No token/ID', true); return; }
 
   const proxy = 'https://corsproxy.io/?';
-  const regions = ['mail.zoho.in', 'mail.zoho.com', 'mail.zoho.eu', 'mail.zoho.com.au'];
-  const paths = [
-    `/api/accounts/${accountId}/messages/${messageId}`,
-    `/api/v1/accounts/${accountId}/messages/${messageId}`,
-    `/api/v2/accounts/${accountId}/messages/${messageId}`,
-    `/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}`,
-    `/api/accounts/${accountId}/messages/${messageId}?folderId=${folderId}`,
-  ];
-  const methods = ['PATCH', 'PUT', 'POST'];
-  const bodies = [
-    { read: true },
-    { isRead: true },
-    { markAsRead: true },
-    { "read": true },
-  ];
+  const base = `https://mail.zoho.in/api`;
+  const versions = ['', '/v1', '/v2'];
+  const results = [];
 
-  let success = false;
-  const total = regions.length * paths.length * methods.length * bodies.length;
-  let count = 0;
-
-  for (const region of regions) {
-    for (const path of paths) {
-      for (const method of methods) {
-        for (const body of bodies) {
-          const url = `${proxy}${encodeURIComponent('https://' + region + path)}`;
-          try {
-            const response = await fetch(url, {
-              method,
-              headers: { 'Authorization': 'Zoho-oauthtoken ' + token, 'Content-Type': 'application/json' },
-              body: JSON.stringify(body)
-            });
-            if (response.ok) { success = true; break; }
-          } catch(e) {}
-          count++;
-        }
-        if (success) break;
-      }
-      if (success) break;
-    }
-    if (success) break;
+  for (const v of versions) {
+    const url = `${proxy}${encodeURIComponent(base + v + `/accounts/${accountId}/messages/actions/markAsRead`)}`;
+    const body1 = { messageIds: [messageId], read: true };
+    const body2 = { messageIds: [messageId], markAsRead: true };
+    results.push(await tryFetch(url, 'POST', JSON.stringify(body1), token));
+    results.push(await tryFetch(url, 'POST', JSON.stringify(body2), token));
   }
 
-  showModalStatus(
-    success
-      ? '✅ Found working combinationRefresh inbox to see if message is read.'
-      : `❌ All ${count} combinations failed. Need to inspect actual Zoho Mail network request manually.`,
-    true
-  );
+  const success = results.some(r => r.includes('✅'));
+  const report = results.join('\n');
+  navigator.clipboard.writeText(report).catch(() => {});
+  showModalStatus(success ? '✅ Let’s go – update worked!' : '❌ Clipboard has final results.', true);
 }
+
+function tryFetch(url, method, body, token) {
+  return fetch(url, {
+    method,
+    headers: { 'Authorization': 'Zoho-oauthtoken ' + token, 'Content-Type': 'application/json' },
+    body
+  }).then(async r => {
+    const text = await r.text();
+    return `${url.split('%2F').pop()} ${method} ${r.status}: ${r.ok?'✅':''} ${text.substring(0,60)}`;
+  }).catch(e => `${method} Net: ${e.message}`);
+}
+
 
 
 
