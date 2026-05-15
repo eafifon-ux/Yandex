@@ -952,7 +952,11 @@ function renderInbox(messages) {
     const from = msg.fromAddress || msg.sender || "Unknown";
     const date = parseDate(msg);
     const snippet = msg.summary || msg.snippet || "";
-    const isUnread = msg.unread === true || msg.isUnread === true;  // 👈 NEW
+    const isUnread =
+  msg.unread === true || msg.unread === 'true' ||
+  msg.isUnread === true || msg.isUnread === 'true' ||
+  (msg.hasOwnProperty('read') && (msg.read === false || msg.read === 'false'));
+  // 👈 NEW
 
     html += `
       <div class="mail${isUnread ? ' unread' : ''}"
