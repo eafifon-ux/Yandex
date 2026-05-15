@@ -979,7 +979,8 @@ async function sendMail(to, subject, body) {
   const payload = {
     toAddress: to,
     subject: subject,
-    content: body
+    content: body,
+    mailFormat: 'plaintext'  // try adding this
   };
 
   const proxy = "https://corsproxy.io/?";
@@ -991,9 +992,16 @@ async function sendMail(to, subject, body) {
     },
     body: JSON.stringify(payload)
   });
-  if (!res.ok) throw new Error(`Send failed: ${res.status}`);
+
+  if (!res.ok) {
+    const errorBody = await res.text();
+    console.error('Zoho error status:', res.status, 'body:', errorBody);
+    throw new Error(`HTTP ${res.status}: ${errorBody.substring(0, 300)}`);
+  }
+
   return await res.json();
 }
+
 
 async function handleSend() {
   const to = document.getElementById('to').value.trim();
