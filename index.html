@@ -1102,6 +1102,27 @@ async function handleSend() {
   }
 }
 
+async function markAsRead(messageId, folderId) {
+  const token = getToken();
+  if (!token) return;
+  const accountId = await getAccountId();
+  if (!accountId) return;
+  const proxy = "https://corsproxy.io/?";
+  const url = `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}/status`;
+  const payload = { read: true };
+  try {
+    await fetch(proxy + encodeURIComponent(url), {
+      method: 'PUT',
+      headers: {
+        'Authorization': 'Zoho-oauthtoken ' + token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+  } catch(e) {
+    console.warn('Failed to mark as read:', e);
+  }
+}
 
 
 /* ===============================
@@ -1155,10 +1176,19 @@ function openEmailModal(messageId, folderId) {
   const stored = messageStore.get(String(messageId));
   if (stored) {
     renderMessageWithMeta(stored);
+    // If it's unread, mark as read on Zoho and update UI
+    if (stored.status === "0") {
+      markAsRead(messageId, folderId).then(() => {
+        stored.status = "1";   // update local copy
+        const mailEl = document.querySelector(`.mail[data-message-id="${messageId}"]`);
+        if (mailEl) mailEl.classList.remove('unread');
+      }).catch(e => console.warn(e));
+    }
   } else {
     fetchFullMessage(messageId, folderId);
   }
 }
+
 
 function closeEmailModal() {
   document.getElementById('emailModal').classList.remove('active');
@@ -1267,7 +1297,15 @@ async function fetchFullMessage(messageId, folderId) {
       if (directRes && directRes.ok) {
         const data = await directRes.json();
         renderMessage(data.data);
+        if (data.data && data.data.status === "0") {
+          markAsRead(messageId, folderId).then(() => {
+            if (data.data) data.data.status = "1";
+            const mailEl = document.querySelector(`.mail[data-message-id="${messageId}"]`);
+            if (mailEl) mailEl.classList.remove('unread');
+          }).catch(e => console.warn(e));
+        }
         return;
+
       } else {
         const status = directRes ? directRes.status : 'CORS blocked';
         let errorBody = '';
@@ -1280,9 +1318,17 @@ async function fetchFullMessage(messageId, folderId) {
     try {
       const res = await fetch(proxy + encodeURIComponent(url), { headers: { Authorization: "Zoho-oauthtoken " + token } });
       if (res.ok) {
-        const data = await res.json();
+                const data = await res.json();
         renderMessage(data.data);
+        if (data.data && data.data.status === "0") {
+          markAsRead(messageId, folderId).then(() => {
+            if (data.data) data.data.status = "1";
+            const mailEl = document.querySelector(`.mail[data-message-id="${messageId}"]`);
+            if (mailEl) mailEl.classList.remove('unread');
+          }).catch(e => console.warn(e));
+        }
         return;
+
       } else {
         let errorBody = '';
         try { errorBody = await res.text(); } catch(e) {}
