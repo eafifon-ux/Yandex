@@ -428,7 +428,7 @@ body.privacy-mode .mail-from {
     <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
       <button id="replyBtn" class="secondary" style="font-size:0.85em; padding:4px 12px;">↩ Reply</button>
       <button id="forwardBtn" class="secondary" style="font-size:0.85em; padding:4px 12px;">↪ Forward</button>
-      <button id="readToggleBtn" class="secondary" style="font-size:0.85em; padding:4px 12px; display:none;">🔵 Mark as unread</button>
+      <button id="readToggleBtn" class="secondary" style="font-size:1.2em; padding:4px 8px; display:none; margin-left:auto;">🔵</button>
     </div>
 
     <div id="modalContent">
@@ -1230,7 +1230,8 @@ toggleBtn.style.display = 'inline-block';
 const msgId = String(msg.messageId || msg.id);
 const override = readStatusOverrides.get(msgId);
 const currentStatus = override !== undefined ? override : (msg.status || "1");
-toggleBtn.innerHTML = currentStatus === "0" ? '🔵 Mark as read' : '⭕ Mark as unread';
+toggleBtn.textContent = currentStatus === "0" ? '⭕' : '🔵';
+
 toggleBtn.onclick = () => toggleReadStatusInModal(msgId, currentStatus);
 
   
@@ -1602,7 +1603,8 @@ function toggleReadStatusInModal(messageId, currentStatus) {
   readStatusOverrides.set(String(messageId), newStatus);
   saveReadOverrides();
   const btn = document.getElementById('readToggleBtn');
-  btn.innerHTML = newStatus === "0" ? '🔵 Mark as read' : '⭕ Mark as unread';
+  btn.textContent = newStatus === "0" ? '⭕' : '🔵';
+
   // also update the messageStore for immediate inbox refresh
   const stored = messageStore.get(String(messageId));
   if (stored) stored.status = newStatus;
