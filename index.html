@@ -1241,35 +1241,42 @@ async function markAsRead(messageId, folderId, read = true) {
   const accountId = await getAccountId();
   if (!accountId) { showModalStatus('❌ No account ID'); return; }
 
-  // Correct endpoints (no /status!)
   const endpoints = [
-    // 1) Generic message update
-    `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}`,
-    // 2) Folder‑scoped message update (sometimes required)
-    `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}`
+    // 1) Action endpoint (most likely correct)
+    {
+      url: `https://mail.zoho.in/api/accounts/${accountId}/messages/actions/markAsRead`,
+      method: 'POST',
+      body: { messageIds: [messageId], folderId }
+    },
+    // 2) Generic message update (fallback)
+    {
+      url: `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}`,
+      method: 'PUT',
+      body: { read }
+    }
   ];
 
   let lastError = '';
-  for (const baseUrl of endpoints) {
+  for (const ep of endpoints) {
     for (const useProxy of [false, true]) {
       try {
-        const fetchUrl = useProxy ? `https://corsproxy.io/?${encodeURIComponent(baseUrl)}` : baseUrl;
+        const fetchUrl = useProxy ? `https://corsproxy.io/?${encodeURIComponent(ep.url)}` : ep.url;
         const res = await fetch(fetchUrl, {
-          method: 'PUT',
+          method: ep.method,
           headers: {
             'Authorization': 'Zoho-oauthtoken ' + token,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ read })
+          body: JSON.stringify(ep.body)
         });
         if (res.ok) {
-          console.log('markAsRead success:', useProxy ? 'proxy' : 'direct', baseUrl);
+          console.log('markAsRead success:', useProxy ? 'proxy' : 'direct', ep.url);
           return;
         }
         const errorBody = await res.text();
-        lastError = `URL: ${baseUrl.replace(token, 'TOKEN')} via ${useProxy ? 'proxy' : 'direct'} – HTTP ${res.status}: ${errorBody.substring(0, 200)}`;
+        lastError = `${ep.method} ${ep.url.replace(token, 'TOKEN')} via ${useProxy ? 'proxy' : 'direct'} – HTTP ${res.status}: ${errorBody.substring(0, 200)}`;
       } catch(e) {
-        lastError = `URL: ${baseUrl.replace(token, 'TOKEN')} – ${e.message}`;
+        lastError = `${ep.method} ${ep.url.replace(token, 'TOKEN')} – ${e.message}`;
       }
     }
   }
