@@ -1274,57 +1274,28 @@
 
         /* ---- READ/UNREAD TOGGLE ---- */
 
-        async function toggleReadStatus(messageId, currentStatus) {
-            const token = getToken();
-            if (!token) return;
-            const accountId = await getAccountId();
-            if (!accountId) return;
+        // Replace the existing toggleReadStatus function with this local-only version:
+async function toggleReadStatus(messageId, currentStatus) {
+  // Remove API call — just toggle locally
+  const stored = messageStore.get(String(messageId));
+  if (!stored) return;
 
-            const newStatus = currentStatus === "0" ? "1" : "0";
+  const newStatus = currentStatus === "0" ? "1" : "0";
+  stored.status = newStatus;
+  messageStore.set(String(messageId), stored);
 
-            const proxy = "https://corsproxy.io/?";
-            const url = `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}`;
+  // Update modal button if the modal is open and shows the same message
+  if (currentModalMessage &&
+    (String(currentModalMessage.messageId) === String(messageId) ||
+      String(currentModalMessage.id) === String(messageId))) {
+    currentModalMessage.status = newStatus;
+    updateModalReadButton(newStatus);
+  }
 
-            try {
-                const res = await fetch(proxy + encodeURIComponent(url), {
-                    method: 'PATCH',
-                    headers: {
-                        'Authorization': 'Zoho-oauthtoken ' + token,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ status: newStatus })
-                });
+  // Re-render the inbox
+  await fetchZohoInbox();
+}
 
-                if (!res.ok) {
-                    const body = await res.text().catch(() => '');
-                    throw new Error(`HTTP ${res.status}: ${body.substring(0, 200)}`);
-                }
-
-                // Update local store
-                const stored = messageStore.get(String(messageId));
-                if (stored) {
-                    stored.status = newStatus;
-                    messageStore.set(String(messageId), stored);
-                }
-
-                // Update currentModalMessage if it matches
-                if (currentModalMessage &&
-                    (String(currentModalMessage.messageId) === String(messageId) ||
-                        String(currentModalMessage.id) === String(messageId))) {
-                    currentModalMessage.status = newStatus;
-                }
-
-                // Update modal button if modal is open
-                updateModalReadButton(newStatus);
-
-                // Re-render inbox
-                await fetchZohoInbox();
-
-            } catch (e) {
-                console.error('Toggle read status failed:', e);
-                alert('Failed to update read status: ' + e.message);
-            }
-        }
 
         function updateModalReadButton(status) {
             const btn = document.getElementById('modalReadToggle');
