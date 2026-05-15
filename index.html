@@ -1238,38 +1238,66 @@ async function handleSend() {
 async function markAsRead(messageId, folderId, read = true) {
   const token = getToken();
   const accountId = await getAccountId();
-  if (!token || !accountId) { alert('Missing token or ID'); return; }
+  if (!token || !accountId) { showModalStatus('❌ No token or ID'); return; }
 
-  const url = `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}`;
-  const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
+  const results = [];
+  const proxy = 'https://corsproxy.io/?';
 
+  // Test 1: Action endpoint with "read"
+  const ep1 = `https://mail.zoho.in/api/accounts/${accountId}/messages/actions/markAsRead`;
+  results.push(await tryFetch(`${proxy}${encodeURIComponent(ep1)}`, 'POST',
+    JSON.stringify({ messageIds: [messageId], folderId, read }),
+    token));
+
+  // Test 2: Action endpoint with "status"
+  results.push(await tryFetch(`${proxy}${encodeURIComponent(ep1)}`, 'POST',
+    JSON.stringify({ messageIds: [messageId], folderId, status: read ? 'read' : 'unread' }),
+    token));
+
+  // Test 3: Single message PATCH
+  const ep3 = `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}`;
+  results.push(await tryFetch(`${proxy}${encodeURIComponent(ep3)}`, 'PATCH',
+    JSON.stringify({ read }),
+    token));
+
+  // Test 4: Single message PUT (original)
+  results.push(await tryFetch(`${proxy}${encodeURIComponent(ep3)}`, 'PUT',
+    JSON.stringify({ read }),
+    token));
+
+  // Build final message
+  let success = false;
+  const lines = results.map(r => {
+    if (r.includes('✅')) success = true;
+    return r;
+  });
+  const report = `markAsRead results:\n${lines.join('\n')}`;
+  navigator.clipboard.writeText(report).catch(() => {}); // auto-copy
+
+  if (success) {
+    showModalStatus('✅ Read status updated!');
+  } else {
+    showModalStatus(`❌ All failed. Copied to clipboard.`, true);
+  }
+}
+
+async function tryFetch(url, method, body, token) {
   try {
-    const res = await fetch(proxyUrl, {
-      method: 'PATCH',
+    const res = await fetch(url, {
+      method,
       headers: {
         'Authorization': 'Zoho-oauthtoken ' + token,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ read })
+      body
     });
     const text = await res.text();
-    alert(`PATCH result: HTTP ${res.status}\n${text.substring(0,200)}`);
+    return `${method} ${res.status}: ${text.substring(0,60)}`;
   } catch(e) {
-    alert('Network error: ' + e.message);
+    return `${method} Network error: ${e.message}`;
   }
 }
 
-async function testProxy() {
-  const testUrl = 'https://jsonplaceholder.typicode.com/todos/1';
-  const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(testUrl)}`;
-  try {
-    const res = await fetch(proxyUrl);
-    const text = await res.text();
-    alert(`Proxy test: HTTP ${res.status}\n${text.substring(0,100)}`);
-  } catch(e) {
-    alert('Proxy test failed: ' + e.message);
-  }
-}
 
 
 
