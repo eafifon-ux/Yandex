@@ -315,6 +315,32 @@ body.privacy-mode .mail-from {
   background: #1e6cff !important;
   border-color: #1e6cff !important;
 }
+/* Ensure modal checkbox is always a visible circle */
+#modalReadCheck {
+  width: 16px !important;
+  height: 16px !important;
+  border-radius: 50% !important;
+  border: 2px solid #999 !important;
+  background: white !important;
+  cursor: pointer !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  display: inline-block !important;
+  margin: 0 !important;
+  transition: background 0.15s, border-color 0.15s !important;
+}
+#modalReadCheck:checked {
+  background: #1e6cff !important;
+  border-color: #1e6cff !important;
+}
+#modalReadCheck:checked::after {
+  content: "✓" !important;
+  color: white !important;
+  font-size: 11px !important;
+  font-weight: bold !important;
+  display: block !important;
+  text-align: center !important;
+}
 
   
 </style>
@@ -1289,28 +1315,20 @@ function openEmailModal(messageId, folderId) {
   const stored = messageStore.get(String(messageId));
   if (stored) {
     renderMessageWithMeta(stored);
+    // Only update the checkbox display, do NOT mark as read
     updateModalCheckbox();
-
-    // If it's unread, mark as read on Zoho and update UI
-   if (stored.status === "0") {
-  markAsRead(messageId, folderId).then(() => {
-    stored.status = "1";
-    const wrapper = document.querySelector(`.mail-wrapper[data-message-id="${messageId}"]`);
-    if (wrapper) wrapper.classList.remove('unread');
-    updateModalCheckbox();   // <-- add this line
-  }).catch(e => console.warn(e));
-}
-
+    // (No call to markAsRead here!)
   } else {
     fetchFullMessage(messageId, folderId);
   }
 }
 
 
+
 function closeEmailModal() {
   document.getElementById('emailModal').classList.remove('active');
-  fetchZohoInbox();   // re-fetch inbox to reflect status change
 }
+
 
 
 function renderMessageWithMeta(msg) {
