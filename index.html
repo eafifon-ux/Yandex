@@ -1239,42 +1239,28 @@ async function markAsRead(messageId, folderId, read = true) {
   const token = getToken();
   const accountId = await getAccountId();
   if (!token || !accountId) {
-    navigator.clipboard.writeText('❌ Missing token or ID').catch(()=>{});
     showModalStatus('❌ Missing token or ID', true);
     return;
   }
 
-  const results = [];
-  const proxy = 'https://corsproxy.io/?';
-  const bases = [
-    `https://mail.zoho.in/api/accounts/${accountId}`,
-    `https://mail.zoho.in/api/accounts/${accountId}/v1`,   // maybe versioned
-    `https://mail.zoho.in/api/v1/accounts/${accountId}`,
-    `https://mail.zoho.in/api/accounts/${accountId}0000000000`, // try longer ID
-  ];
-
-  for (const base of bases) {
-    const actionUrl = `${proxy}${encodeURIComponent(base + '/messages/actions/markAsRead')}`;
-    results.push(await tryFetch(actionUrl, 'POST', JSON.stringify({ messageIds: [messageId], read: true }), token));
-    results.push(await tryFetch(actionUrl, 'POST', JSON.stringify({ messageIds: [messageId], markAsRead: true }), token));
+  const url = `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}`;
+  try {
+    await fetch(url, {
+      method: 'PUT',
+      headers: {
+        'Authorization': 'Zoho-oauthtoken ' + token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ read: true }),
+      mode: 'no-cors'   // ignore CORS – request still sent
+    });
+    // No response reading possible, assume success
+    showModalStatus('✅ Attempted (no-cors) – refresh inbox to check');
+  } catch(e) {
+    showModalStatus('❌ Network error: ' + e.message);
   }
-
-  const success = results.some(r => r.includes('✅'));
-  const report = `AccountID: ${accountId}\n${results.join('\n')}`;
-  await navigator.clipboard.writeText(report).catch(() => {});
-  showModalStatus(success ? '✅ Success!' : '❌ All failed. Clipboard has full report.', true);
 }
 
-function tryFetch(url, method, body, token) {
-  return fetch(url, {
-    method,
-    headers: { 'Authorization': 'Zoho-oauthtoken ' + token, 'Content-Type': 'application/json' },
-    body
-  }).then(async r => {
-    const text = await r.text();
-    return `${url.substring(url.lastIndexOf('%2F')+3)} ${method} ${r.status}: ${r.ok?'✅':''} ${text.substring(0,60)}`;
-  }).catch(e => `Network: ${e.message}`);
-}
 
 
 
