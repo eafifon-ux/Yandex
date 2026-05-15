@@ -978,9 +978,9 @@ async function sendMail(to, subject, body) {
   const url = `https://mail.zoho.in/api/accounts/${accountId}/messages`;
   const payload = {
     toAddress: to,
-    subject: subject,
+    subject: subject || '(No subject)',
     content: body,
-    mailFormat: 'plaintext'  // try adding this
+    mailFormat: 'plaintext'
   };
 
   const proxy = "https://corsproxy.io/?";
@@ -995,8 +995,10 @@ async function sendMail(to, subject, body) {
 
   if (!res.ok) {
     const errorBody = await res.text();
-    console.error('Zoho error status:', res.status, 'body:', errorBody);
-    throw new Error(`HTTP ${res.status}: ${errorBody.substring(0, 300)}`);
+    const errorMsg = `HTTP ${res.status}: ${errorBody.substring(0, 300)}`;
+    // Auto‑copy to clipboard
+    try { await navigator.clipboard.writeText(errorMsg); } catch(e) {}
+    throw new Error(errorMsg);
   }
 
   return await res.json();
@@ -1005,7 +1007,7 @@ async function sendMail(to, subject, body) {
 
 async function handleSend() {
   const to = document.getElementById('to').value.trim();
-  const subject = document.getElementById('subject').value.trim() || '(No subject)';
+  const subject = document.getElementById('subject').value.trim();
   const body = document.getElementById('body').value.trim();
 
   if (!to) { alert('Recipient is required.'); return; }
@@ -1015,20 +1017,21 @@ async function handleSend() {
   sendBtn.textContent = '⏳ Sending...';
 
   try {
-    await sendMail(to, subject, body);
+    await sendMail(to, subject || '(No subject)', body);
     alert('✅ Message sent!');
     document.getElementById('to').value = '';
     document.getElementById('subject').value = '';
     document.getElementById('body').value = '';
     document.getElementById('preview').innerHTML = '';
-    fetchZohoInbox(); // optional refresh
   } catch (err) {
-    alert('❌ Send failed:\n' + (err.message || 'Unknown error'));
+    const msg = `❌ Send failed\n\n${err.message}\n\n(Error copied to clipboard)`;
+    alert(msg);
   } finally {
     sendBtn.disabled = false;
     sendBtn.textContent = '✉️ Send';
   }
 }
+
 
 /* ===============================
    ZOHO LOGIN & PROFILE
