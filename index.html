@@ -1236,39 +1236,36 @@ async function handleSend() {
 }
 
 async function markAsRead(messageId, folderId, read = true) {
-  const token = getToken();
-  const accountId = await getAccountId();
-  if (!token || !accountId) { showModalStatus('No token/ID', true); return; }
-
-  const proxy = 'https://corsproxy.io/?';
-  const base = `https://mail.zoho.in/api`;
-  const versions = ['', '/v1', '/v2'];
-  const results = [];
-
-  for (const v of versions) {
-    const url = `${proxy}${encodeURIComponent(base + v + `/accounts/${accountId}/messages/actions/markAsRead`)}`;
-    const body1 = { messageIds: [messageId], read: true };
-    const body2 = { messageIds: [messageId], markAsRead: true };
-    results.push(await tryFetch(url, 'POST', JSON.stringify(body1), token));
-    results.push(await tryFetch(url, 'POST', JSON.stringify(body2), token));
+  // Find the checkbox/element for this message in Zoho's UI
+  const msgEl = document.querySelector(`[data-messageid="${messageId}"]`) ||
+                document.querySelector(`[zoho-message-id="${messageId}"]`) ||
+                document.querySelector(`[id*="${messageId}"]`);
+  if (!msgEl) {
+    showModalStatus('❌ Message not found on page', true);
+    return;
   }
 
-  const success = results.some(r => r.includes('✅'));
-  const report = results.join('\n');
-  navigator.clipboard.writeText(report).catch(() => {});
-  showModalStatus(success ? '✅ Let’s go – update worked!' : '❌ Clipboard has final results.', true);
+  // Try Zoho's internal function first (if exposed)
+  if (window.zohoMail && window.zohoMail.markAsRead) {
+    window.zohoMail.markAsRead(messageId);
+    showModalStatus('✅ Used internal function', true);
+    return;
+  }
+
+  // Simulate a right-click and select "Mark as read"
+  const contextMenu = new MouseEvent('contextmenu', { bubbles: true, button: 2 });
+  msgEl.dispatchEvent(contextMenu);
+  showModalStatus('❓ Context menu triggered – waiting for user?', true);
+
+  // Fallback: find the "Mark as read" button in the toolbar and click it
+  const markBtn = document.querySelector('[title*="Mark as Read"]') ||
+                  document.querySelector('[aria-label*="Mark as Read"]');
+  if (markBtn) {
+    markBtn.click();
+    showModalStatus('✅ Toolbar button clicked', true);
+  }
 }
 
-function tryFetch(url, method, body, token) {
-  return fetch(url, {
-    method,
-    headers: { 'Authorization': 'Zoho-oauthtoken ' + token, 'Content-Type': 'application/json' },
-    body
-  }).then(async r => {
-    const text = await r.text();
-    return `${url.split('%2F').pop()} ${method} ${r.status}: ${r.ok?'✅':''} ${text.substring(0,60)}`;
-  }).catch(e => `${method} Net: ${e.message}`);
-}
 
 
 
