@@ -581,7 +581,16 @@ function formatUTCTime(dateObj) {
   const d = String(dateObj.getUTCDate()).padStart(2,'0');
   const hh = String(dateObj.getUTCHours()).padStart(2,'0');
   const mm = String(dateObj.getUTCMinutes()).padStart(2,'0');
-  // Return HTML with two spans for date and time
+  return `${y}-${m}-${d} ${hh}:${mm}Z`;   // back to plain text
+}
+
+function formatTopBarUTC(dateObj) {
+  if (!dateObj || isNaN(dateObj.getTime())) return '';
+  const y = dateObj.getUTCFullYear();
+  const m = String(dateObj.getUTCMonth()+1).padStart(2,'0');
+  const d = String(dateObj.getUTCDate()).padStart(2,'0');
+  const hh = String(dateObj.getUTCHours()).padStart(2,'0');
+  const mm = String(dateObj.getUTCMinutes()).padStart(2,'0');
   return `<span class="date-greg">${y}-${m}-${d}</span> <span class="utc-pill">${hh}:${mm}Z</span>`;
 }
 
@@ -600,13 +609,13 @@ function formatFullGPCWithTime(dateObj) {
 // ----- Main display function for top bar -----
 function formatDisplayTime(dateObj) {
   if (!dateObj || isNaN(dateObj.getTime())) return '';
-  if (timeMode === 'utc') return formatUTCTime(dateObj);
+  if (timeMode === 'utc') return formatTopBarUTC(dateObj);   // now returns HTML
   if (timeMode === 'sun') return formatSUNTime(dateObj);
-  // gpc mode: date only (no time)
   const days = GPC.daysFromGregorian(dateObj);
   const g = GPC.gpcFromDays(days);
-  return formatGPC(g);
+  return formatGPC(g);   // keep as plain text (or HTML if you want? but fine)
 }
+
 
 function formatZuluTime(dateObj) {
   // For modal and inbox: use full GPC+time for GPC and SUN modes
@@ -702,6 +711,7 @@ function updateTopBar() {
   const now = new Date();
   document.getElementById("gpc-display").innerHTML = formatDisplayTime(now);
 }
+
 
 
 function showWeekFilter(){ document.getElementById("week-filter-container").style.display="block"; }
