@@ -1237,15 +1237,15 @@ async function handleSend() {
 
 async function markAsRead(messageId, folderId, read = true) {
   const token = getToken();
-  if (!token) { showModalStatus('No auth token'); return; }
+  if (!token) { showModalStatus('❌ No auth token'); return; }
   const accountId = await getAccountId();
-  if (!accountId) { showModalStatus('No account ID'); return; }
+  if (!accountId) { showModalStatus('❌ No account ID'); return; }
 
   const url = `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}/status`;
   const payload = { read };
 
-  // Try direct first, fallback to proxy
   let lastError = '';
+  // Try direct first (may be CORS-blocked)
   for (const useProxy of [false, true]) {
     try {
       const fetchUrl = useProxy ? `https://corsproxy.io/?${encodeURIComponent(url)}` : url;
@@ -1258,23 +1258,28 @@ async function markAsRead(messageId, folderId, read = true) {
         body: JSON.stringify(payload)
       });
       if (res.ok) {
-        console.log('markAsRead success', useProxy ? 'via proxy' : 'direct');
+        // Success – update local UI
         return;
       }
       const errorBody = await res.text();
       lastError = `HTTP ${res.status}: ${errorBody.substring(0, 200)}`;
-      console.warn('markAsRead failed', lastError);
     } catch(e) {
       lastError = e.message;
-      console.warn('markAsRead error', e);
     }
   }
   // Both attempts failed
-  const debugInfo = `MessageID: ${messageId}\nFolderID: ${folderId}\nAccountID: ${accountId}\nToken: ${token ? 'present ('+token.substring(0,10)+'...)' : 'missing'}\nLast error: ${lastError}\nTime: ${new Date().toISOString()}`;
-  showModalStatus(`❌ Failed to mark as read – ${lastError}. Debug info: ${debugInfo}`);
-  // Also copy to clipboard automatically for convenience
+  const debugInfo = [
+    `Time: ${new Date().toISOString()}`,
+    `MessageID: ${messageId}`,
+    `FolderID: ${folderId}`,
+    `AccountID: ${accountId}`,
+    `Token: ${token ? 'present' : 'missing'}`,
+    `Last error: ${lastError}`
+  ].join('\n');
+  showModalStatus(`❌ Failed to mark as read. Error: ${lastError}`, true);
   navigator.clipboard.writeText(debugInfo).catch(() => {});
 }
+
 
 
 function showModalStatus(message, isError = true) {
@@ -1285,22 +1290,17 @@ function showModalStatus(message, isError = true) {
   div.style.cssText = `padding:8px 12px; border-radius:6px; margin-bottom:8px; font-size:0.85em; display:flex; justify-content:space-between; align-items:center; ${isError ? 'background:#ffe0e0;color:#b00;' : 'background:#e8f5e8;color:#4CAF50;'}`;
   div.innerHTML = `<span>${message}</span>
     <button class="copy-btn" onclick="copyStatusToClipboard()" style="background:#555;color:white;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;">📋 Copy</button>`;
-  const container = document.querySelector('#modalContent > div:first-child'); // after the flex container with checkbox
-  if (container) {
-    container.parentNode.insertBefore(div, container.nextSibling);
-  } else {
-    document.getElementById('modalContent').prepend(div);
-  }
-  // Auto-hide after 5 seconds
-  setTimeout(() => { if (div.parentNode) div.remove(); }, 5000);
+  const content = document.getElementById('modalContent');
+  if (content) content.prepend(div);
+  setTimeout(() => { if (div.parentNode) div.remove(); }, 8000);
 }
 
 function copyStatusToClipboard() {
   const el = document.querySelector('.api-status span');
   if (!el) return;
-  const text = el.textContent;
-  navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+  navigator.clipboard.writeText(el.textContent).catch(() => fallbackCopy(el.textContent));
 }
+
 
 
 
