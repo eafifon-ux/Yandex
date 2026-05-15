@@ -1238,62 +1238,42 @@ async function handleSend() {
 async function markAsRead(messageId, folderId, read = true) {
   const token = getToken();
   const accountId = await getAccountId();
-  if (!token || !accountId) { showModalStatus('❌ No token or ID'); return; }
-
-  // First, test the account ID
-  alert(`Account ID: ${accountId}\nToken: ${token.substring(0,20)}...`);
+  if (!token || !accountId) {
+    navigator.clipboard.writeText('❌ Missing token or ID').catch(()=>{});
+    showModalStatus('❌ Missing token or ID', true);
+    return;
+  }
 
   const results = [];
   const proxy = 'https://corsproxy.io/?';
-  const base = `https://mail.zoho.in/api/accounts/${accountId}`;
-  const actionUrl = `${proxy}${encodeURIComponent(base + '/messages/actions/markAsRead')}`;
+  const bases = [
+    `https://mail.zoho.in/api/accounts/${accountId}`,
+    `https://mail.zoho.in/api/accounts/${accountId}/v1`,   // maybe versioned
+    `https://mail.zoho.in/api/v1/accounts/${accountId}`,
+    `https://mail.zoho.in/api/accounts/${accountId}0000000000`, // try longer ID
+  ];
 
-  // Test with correct payload from official docs: messageIds as array, read as boolean
-  results.push(await tryFetch(actionUrl, 'POST',
-    JSON.stringify({ messageIds: [messageId], read: true }), token));
-
-  // Try with "markAsRead" instead of "read"
-  results.push(await tryFetch(actionUrl, 'POST',
-    JSON.stringify({ messageIds: [messageId], markAsRead: true }), token));
-
-  // Try without folderId
-  results.push(await tryFetch(actionUrl, 'POST',
-    JSON.stringify({ messageIds: [messageId] }), token));
-
-  // Try using a different endpoint: /messages/actions/read (maybe missing 'mark')
-  const altActionUrl = `${proxy}${encodeURIComponent(base + '/messages/actions/read')}`;
-  results.push(await tryFetch(altActionUrl, 'POST',
-    JSON.stringify({ messageIds: [messageId], read: true }), token));
-
-  // Try with folderId inside a filter object
-  results.push(await tryFetch(actionUrl, 'POST',
-    JSON.stringify({ messageIds: [messageId], filter: { folderId }, read: true }), token));
-
-  // Single message: try PUT on /messages/{messageId}/read
-  const singleUrl = `${proxy}${encodeURIComponent(base + '/messages/' + messageId + '/read')}`;
-  results.push(await tryFetch(singleUrl, 'PUT', JSON.stringify({}), token));
-
-  // Try PATCH on same
-  results.push(await tryFetch(singleUrl, 'PATCH', JSON.stringify({ read: true }), token));
+  for (const base of bases) {
+    const actionUrl = `${proxy}${encodeURIComponent(base + '/messages/actions/markAsRead')}`;
+    results.push(await tryFetch(actionUrl, 'POST', JSON.stringify({ messageIds: [messageId], read: true }), token));
+    results.push(await tryFetch(actionUrl, 'POST', JSON.stringify({ messageIds: [messageId], markAsRead: true }), token));
+  }
 
   const success = results.some(r => r.includes('✅'));
-  const report = `Results:\n${results.join('\n')}`;
-  navigator.clipboard.writeText(report).catch(() => {});
-  showModalStatus(success ? '✅ Action worked!' : '❌ All failed. Clipboard updated.', true);
+  const report = `AccountID: ${accountId}\n${results.join('\n')}`;
+  await navigator.clipboard.writeText(report).catch(() => {});
+  showModalStatus(success ? '✅ Success!' : '❌ All failed. Clipboard has full report.', true);
 }
 
 function tryFetch(url, method, body, token) {
   return fetch(url, {
     method,
-    headers: {
-      'Authorization': 'Zoho-oauthtoken ' + token,
-      'Content-Type': 'application/json'
-    },
+    headers: { 'Authorization': 'Zoho-oauthtoken ' + token, 'Content-Type': 'application/json' },
     body
   }).then(async r => {
     const text = await r.text();
-    return `${method} ${r.status}: ${r.ok ? '✅' : ''} ${text.substring(0,80)}`;
-  }).catch(e => `Network error: ${e.message}`);
+    return `${url.substring(url.lastIndexOf('%2F')+3)} ${method} ${r.status}: ${r.ok?'✅':''} ${text.substring(0,60)}`;
+  }).catch(e => `Network: ${e.message}`);
 }
 
 
