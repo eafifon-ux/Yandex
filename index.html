@@ -1236,34 +1236,40 @@ async function handleSend() {
 }
 
 async function markAsRead(messageId, folderId, read = true) {
-  // Find the checkbox/element for this message in Zoho's UI
-  const msgEl = document.querySelector(`[data-messageid="${messageId}"]`) ||
-                document.querySelector(`[zoho-message-id="${messageId}"]`) ||
-                document.querySelector(`[id*="${messageId}"]`);
-  if (!msgEl) {
-    showModalStatus('❌ Message not found on page', true);
-    return;
+  const token = getToken();
+  const accountId = await getAccountId();
+  if (!token || !accountId) { showModalStatus('No token/ID', true); return; }
+
+  const proxy = 'https://corsproxy.io/?';
+  const bases = [
+    `https://mail.zoho.in/api/accounts/${accountId}`,
+    `https://mail.zoho.in/zm/api/accounts/${accountId}`,
+    `https://api.zoho.in/mail/accounts/${accountId}`
+  ];
+  const attempts = [];
+  for (const base of bases) {
+    attempts.push({ url: `${base}/messages/${messageId}`, method: 'PATCH', body: { "isRead": true } });
+    attempts.push({ url: `${base}/messages/${messageId}`, method: 'PUT', body: { "isRead": true } });
+    attempts.push({ url: `${base}/folders/${folderId}/messages/actions/markAsRead`, method: 'POST', body: { "messageIds": [messageId], "read": true } });
+    attempts.push({ url: `${base}/messages/markAsRead`, method: 'POST', body: { "messageIds": [messageId] } });
   }
 
-  // Try Zoho's internal function first (if exposed)
-  if (window.zohoMail && window.zohoMail.markAsRead) {
-    window.zohoMail.markAsRead(messageId);
-    showModalStatus('✅ Used internal function', true);
-    return;
+  for (const a of attempts) {
+    const fullUrl = proxy + encodeURIComponent(a.url);
+    try {
+      const resp = await fetch(fullUrl, {
+        method: a.method,
+        headers: { 'Authorization': 'Zoho-oauthtoken ' + token, 'Content-Type': 'application/json' },
+        body: JSON.stringify(a.body)
+      });
+      const text = await resp.text();
+      if (resp.ok) {
+        showModalStatus('✅ Success! Check inbox.', true);
+        return;
+      }
+    } catch(e) {}
   }
-
-  // Simulate a right-click and select "Mark as read"
-  const contextMenu = new MouseEvent('contextmenu', { bubbles: true, button: 2 });
-  msgEl.dispatchEvent(contextMenu);
-  showModalStatus('❓ Context menu triggered – waiting for user?', true);
-
-  // Fallback: find the "Mark as read" button in the toolbar and click it
-  const markBtn = document.querySelector('[title*="Mark as Read"]') ||
-                  document.querySelector('[aria-label*="Mark as Read"]');
-  if (markBtn) {
-    markBtn.click();
-    showModalStatus('✅ Toolbar button clicked', true);
-  }
+  showModalStatus('❌ None worked. Token scope is the issue.', true);
 }
 
 
