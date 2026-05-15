@@ -845,6 +845,20 @@ function nextSeason(){ const s=currentSeason===null?1:(currentSeason===4?1:curre
 function setDOYMonth(m){
   currentDOYMonth=m;
   document.querySelectorAll('.doy-month').forEach(td=>{ td.classList.remove('active'); if(Number(td.dataset.month)===m) td.classList.add('active'); });
+  // Click on the left unread bar to toggle read/unread
+document.getElementById('inbox').addEventListener('click', async function(e) {
+  const mailDiv = e.target.closest('.mail');
+  if (!mailDiv) return;
+  
+  const messageId = mailDiv.dataset.messageId;
+  const folderId = mailDiv.dataset.folderId;
+  
+  // If user clicked the left border area (unread bar)
+  if (e.offsetX < 20 && mailDiv.classList.contains('unread')) {
+    e.stopImmediatePropagation();
+    await markAsRead(messageId, folderId, true); // mark as read
+  }
+});
   document.getElementById('doy-filter-status').style.display='inline-block';
   document.getElementById('current-doy-month').textContent=dosMonthNames[m-1];
   fetchZohoInbox();
@@ -880,6 +894,44 @@ function parseDate(msg) {
   const parsed = Date.parse(raw);
   if (!isNaN(parsed)) return new Date(parsed);
   return new Date();
+}
+
+// ==================== MARK READ / UNREAD ====================
+
+async function markAsRead(messageId, folderId, read = true) {
+  const token = getToken();
+  if (!token) return false;
+  const accountId = await getAccountId();
+  if (!accountId) return false;
+  
+  const proxy = "https://corsproxy.io/?";
+  const url = `https://mail.zoho.in/api/accounts/\( {accountId}/messages/ \){messageId}`;
+  
+  try {
+    const res = await fetch(proxy + encodeURIComponent(url), {
+      method: 'PUT',
+      headers: {
+        'Authorization': 'Zoho-oauthtoken ' + token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        status: read ? "1" : "0" // 1 = read, 0 = unread
+      })
+    });
+    
+    if (res.ok) {
+      // Update local store
+      const msg = messageStore.get(String(messageId));
+      if (msg) msg.status = read ? "1" : "0";
+      
+      // Refresh inbox visually
+      fetchZohoInbox();
+      return true;
+    }
+  } catch (e) {
+    console.error("Mark read/unread failed", e);
+  }
+  return false;
 }
 
 function filterByDay(messages, dayIndex) {
