@@ -249,6 +249,56 @@ body.privacy-mode .mail-from {
   font-weight: 800; /* extra bold subject */
 }
 
+.mail-wrapper {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 0;
+  border-bottom: 1px solid #eee;
+  cursor: pointer;
+}
+.mail-wrapper:last-child { border-bottom: none; }
+
+.read-check {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-top: 3px;
+  border-radius: 50%;
+  border: 2px solid #999;
+  background: white;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, border-color 0.15s;
+}
+.read-check:checked {
+  background: #1e6cff;
+  border-color: #1e6cff;
+}
+.read-check:checked::after {
+  content: "✓";
+  color: white;
+  font-size: 13px;
+  font-weight: bold;
+  line-height: 1;
+}
+
+/* Move the unread style from .mail to .mail-wrapper */
+.mail-wrapper.unread {
+  border-left: 5px solid #9b27b0;
+  background: #f9f0ff;
+  padding-left: 14px;
+}
+.mail-wrapper.unread .mail-subject {
+  font-weight: 800;
+}
+
+/* Remove or comment out the old .mail.unread rule – it's replaced */
+
   
 </style>
 </head>
@@ -952,24 +1002,26 @@ function renderInbox(messages) {
     const from = msg.fromAddress || msg.sender || "Unknown";
     const date = parseDate(msg);
     const snippet = msg.summary || msg.snippet || "";
-    const isUnread = msg.status === "0";   // "0" = unread in Zoho API
-
+    const isUnread = msg.status === "0";   // "0" = unread
 
     html += `
-      <div class="mail${isUnread ? ' unread' : ''}"
+      <div class="mail-wrapper${isUnread ? ' unread' : ''}"
            data-message-id="${escapeHtml(messageId || '')}"
-           data-folder-id="${escapeHtml(msg.folderId || '')}"
-           style="cursor:pointer;">
-        <div class="mail-subject">${escapeHtml(sub)}</div>
-        <div class="mail-sender">${escapeHtml(from)}</div>
-        <div class="mail-meta">
-          ${getGPCBadgeHTML(date)}
+           data-folder-id="${escapeHtml(msg.folderId || '')}">
+        <input type="checkbox" class="read-check" ${isUnread ? '' : 'checked'}>
+        <div style="flex:1; min-width:0;">
+          <div class="mail-subject">${escapeHtml(sub)}</div>
+          <div class="mail-sender">${escapeHtml(from)}</div>
+          <div class="mail-meta">
+            ${getGPCBadgeHTML(date)}
+          </div>
+          <div class="mail-preview">${escapeHtml(snippet)}</div>
         </div>
-        <div class="mail-preview">${escapeHtml(snippet)}</div>
       </div>`;
   });
   inboxDiv.innerHTML = html;
 }
+
 
 
 
@@ -1102,27 +1154,30 @@ async function handleSend() {
   }
 }
 
-async function markAsRead(messageId, folderId) {
-  const token = getToken();
+async function markAsRead(messageId, folderId, read = true) {
+  var token = getToken();
   if (!token) return;
-  const accountId = await getAccountId();
-  if (!accountId) return;
-  const proxy = "https://corsproxy.io/?";
-  const url = `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}/status`;
-  const payload = { read: true };
-  try {
-    await fetch(proxy + encodeURIComponent(url), {
+
+  getAccountId().then(function(accountId) {
+    if (!accountId) return;
+
+    var proxy = "https://corsproxy.io/?";
+    var url = "https://mail.zoho.in/api/accounts/" + accountId + "/messages/" + messageId + "/status";
+    var payload = { read: read };
+
+    fetch(proxy + encodeURIComponent(url), {
       method: 'PUT',
       headers: {
         'Authorization': 'Zoho-oauthtoken ' + token,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(payload)
+    }).catch(function(e) {
+      console.warn('Failed to mark as read/unread:', e);
     });
-  } catch(e) {
-    console.warn('Failed to mark as read:', e);
-  }
+  });
 }
+
 
 
 /* ===============================
@@ -1180,8 +1235,9 @@ function openEmailModal(messageId, folderId) {
     if (stored.status === "0") {
       markAsRead(messageId, folderId).then(() => {
         stored.status = "1";   // update local copy
-        const mailEl = document.querySelector(`.mail[data-message-id="${messageId}"]`);
-        if (mailEl) mailEl.classList.remove('unread');
+        const wrapper = document.querySelector(`.mail-wrapper[data-message-id="${messageId}"]`);
+if (wrapper) wrapper.classList.remove('unread');
+
       }).catch(e => console.warn(e));
     }
   } else {
@@ -1300,8 +1356,9 @@ async function fetchFullMessage(messageId, folderId) {
         if (data.data && data.data.status === "0") {
           markAsRead(messageId, folderId).then(() => {
             if (data.data) data.data.status = "1";
-            const mailEl = document.querySelector(`.mail[data-message-id="${messageId}"]`);
-            if (mailEl) mailEl.classList.remove('unread');
+            const wrapper = document.querySelector(`.mail-wrapper[data-message-id="${messageId}"]`);
+if (wrapper) wrapper.classList.remove('unread');
+
           }).catch(e => console.warn(e));
         }
         return;
@@ -1323,8 +1380,9 @@ async function fetchFullMessage(messageId, folderId) {
         if (data.data && data.data.status === "0") {
           markAsRead(messageId, folderId).then(() => {
             if (data.data) data.data.status = "1";
-            const mailEl = document.querySelector(`.mail[data-message-id="${messageId}"]`);
-            if (mailEl) mailEl.classList.remove('unread');
+            const wrapper = document.querySelector(`.mail-wrapper[data-message-id="${messageId}"]`);
+if (wrapper) wrapper.classList.remove('unread');
+
           }).catch(e => console.warn(e));
         }
         return;
@@ -1666,13 +1724,42 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.querySelector('#doy-filter-status .filter-remove').addEventListener('click',clearDOYFilter);
   document.querySelectorAll('.dos-season').forEach(td=>{ td.addEventListener('click',()=>setSeason(Number(td.dataset.season))); });
   document.querySelectorAll('.doy-month').forEach(td=>{ td.addEventListener('click',()=>setDOYMonth(Number(td.dataset.month))); });
-  document.getElementById('inbox').addEventListener('click', function(e) {
-    const mailDiv = e.target.closest('.mail');
-    if (!mailDiv) return;
-    const messageId = mailDiv.dataset.messageId;
-    const folderId = mailDiv.dataset.folderId;
+  // Click on wrapper opens modal (ignore checkbox clicks)
+document.getElementById('inbox').addEventListener('click', function(e) {
+    if (e.target.closest('.read-check')) return;
+    const wrapper = e.target.closest('.mail-wrapper');
+    if (!wrapper) return;
+    const messageId = wrapper.dataset.messageId;
+    const folderId = wrapper.dataset.folderId;
     if (messageId) openEmailModal(messageId, folderId);
-  });
+});
+
+// Checkbox toggle → instant read/unread + API sync
+document.getElementById('inbox').addEventListener('change', function(e) {
+    if (!e.target.classList.contains('read-check')) return;
+    const wrapper = e.target.closest('.mail-wrapper');
+    if (!wrapper) return;
+    const messageId = wrapper.dataset.messageId;
+    const folderId = wrapper.dataset.folderId;
+    const isChecked = e.target.checked;
+
+    // Instant UI update
+    if (isChecked) {
+        wrapper.classList.remove('unread');
+    } else {
+        wrapper.classList.add('unread');
+    }
+
+    // Update local store
+    const stored = messageStore.get(messageId);
+    if (stored) {
+        stored.status = isChecked ? "1" : "0";
+    }
+
+    // Sync with Zoho server
+    markAsRead(messageId, folderId, isChecked);
+});
+
   document.getElementById('modalCloseBtn').addEventListener('click', closeEmailModal);
   document.getElementById('replyBtn').addEventListener('click', replyToCurrentMessage);
 document.getElementById('forwardBtn').addEventListener('click', forwardCurrentMessage);
