@@ -1241,14 +1241,20 @@ async function markAsRead(messageId, folderId, read = true) {
   const accountId = await getAccountId();
   if (!accountId) { showModalStatus('❌ No account ID'); return; }
 
+  const attempts = [];
+
+  const proxies = [null, 'https://corsproxy.io/?']; // null = direct
   const endpoints = [
-    // 1) Action endpoint (most likely correct)
     {
       url: `https://mail.zoho.in/api/accounts/${accountId}/messages/actions/markAsRead`,
       method: 'POST',
-      body: { messageIds: [messageId], folderId }
+      body: { messageIds: [messageId], folderId, read }
     },
-    // 2) Generic message update (fallback)
+    {
+      url: `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}`,
+      method: 'PUT',
+      body: { read }
+    },
     {
       url: `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}`,
       method: 'PUT',
@@ -1256,11 +1262,10 @@ async function markAsRead(messageId, folderId, read = true) {
     }
   ];
 
-  let lastError = '';
   for (const ep of endpoints) {
-    for (const useProxy of [false, true]) {
+    for (const proxy of proxies) {
       try {
-        const fetchUrl = useProxy ? `https://corsproxy.io/?${encodeURIComponent(ep.url)}` : ep.url;
+        const fetchUrl = proxy ? `${proxy}${encodeURIComponent(ep.url)}` : ep.url;
         const res = await fetch(fetchUrl, {
           method: ep.method,
           headers: {
@@ -1270,13 +1275,15 @@ async function markAsRead(messageId, folderId, read = true) {
           body: JSON.stringify(ep.body)
         });
         if (res.ok) {
-          console.log('markAsRead success:', useProxy ? 'proxy' : 'direct', ep.url);
+          attempts.push(`✅ ${ep.method} ${ep.url} (${proxy ? 'proxy' : 'direct'}) -> OK`);
+          console.log('markAsRead success:', attempts[attempts.length-1]);
+          // Success – do not show status banner
           return;
         }
         const errorBody = await res.text();
-        lastError = `${ep.method} ${ep.url.replace(token, 'TOKEN')} via ${useProxy ? 'proxy' : 'direct'} – HTTP ${res.status}: ${errorBody.substring(0, 200)}`;
+        attempts.push(`❌ ${ep.method} ${ep.url.replace(token,'TOKEN')} (${proxy ? 'proxy' : 'direct'}) -> HTTP ${res.status}: ${errorBody.substring(0,150)}`);
       } catch(e) {
-        lastError = `${ep.method} ${ep.url.replace(token, 'TOKEN')} – ${e.message}`;
+        attempts.push(`❌ ${ep.method} ${ep.url.replace(token,'TOKEN')} (${proxy ? 'proxy' : 'direct'}) -> Network error: ${e.message}`);
       }
     }
   }
@@ -1287,10 +1294,12 @@ async function markAsRead(messageId, folderId, read = true) {
     `FolderID: ${folderId}`,
     `AccountID: ${accountId}`,
     `Token: ${token ? 'present' : 'missing'}`,
-    `Last error: ${lastError}`
+    `Attempts:`,
+    ...attempts
   ].join('\n');
-  showModalStatus(`❌ Failed to mark as read. ${lastError}`, true);
+  showModalStatus(`❌ All attempts failed. See console for details.`, true);
   navigator.clipboard.writeText(debugInfo).catch(() => {});
+  console.warn('markAsRead all attempts failed:', attempts);
 }
 
 
