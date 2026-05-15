@@ -369,7 +369,9 @@
     <input id="to" placeholder="Recipient">
     <input id="subject" placeholder="Subject">
     <textarea id="body" placeholder="Write your message..."></textarea>
-    <button class="secondary" onclick="previewMail()" style="margin-top:12px;">Preview Time Layer</button>
+<button class="secondary" onclick="previewMail()" style="margin-top:12px;">Preview Time Layer</button>
+<button id="sendBtn" onclick="handleSend()" style="margin-top:12px;margin-left:8px;">✉️ Send</button>
+
     <div id="preview" style="margin-top:20px;"></div>
   </div>
 
@@ -964,6 +966,59 @@ html += `
     </div>
     <div class="mail-preview">${escapeHtml(snippet)}</div>
   </div>`;
+}
+
+async function sendMail(to, subject, body) {
+  const token = getToken();
+  if (!token) { alert('Not logged in'); return; }
+  const accountId = await getAccountId();
+  if (!accountId) return;
+
+  const url = `https://mail.zoho.in/api/accounts/${accountId}/messages`;
+  const payload = {
+    toAddress: to,
+    subject: subject,
+    content: body
+  };
+
+  const proxy = "https://corsproxy.io/?";
+  const res = await fetch(proxy + encodeURIComponent(url), {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Zoho-oauthtoken ' + token,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) throw new Error(`Send failed: ${res.status}`);
+  return await res.json();
+}
+
+async function handleSend() {
+  const to = document.getElementById('to').value.trim();
+  const subject = document.getElementById('subject').value.trim() || '(No subject)';
+  const body = document.getElementById('body').value.trim();
+
+  if (!to) { alert('Recipient is required.'); return; }
+
+  const sendBtn = document.getElementById('sendBtn');
+  sendBtn.disabled = true;
+  sendBtn.textContent = '⏳ Sending...';
+
+  try {
+    await sendMail(to, subject, body);
+    alert('✅ Message sent!');
+    document.getElementById('to').value = '';
+    document.getElementById('subject').value = '';
+    document.getElementById('body').value = '';
+    document.getElementById('preview').innerHTML = '';
+    fetchZohoInbox(); // optional refresh
+  } catch (err) {
+    alert('❌ Send failed:\n' + (err.message || 'Unknown error'));
+  } finally {
+    sendBtn.disabled = false;
+    sendBtn.textContent = '✉️ Send';
+  }
 }
 
 /* ===============================
