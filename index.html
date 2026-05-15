@@ -253,27 +253,30 @@ body.privacy-mode .mail-from {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  padding: 14px 0;
+  padding: 14px 28px 14px 14px;  /* increased right padding to 28px */
   border-bottom: 1px solid #eee;
   cursor: pointer;
+  position: relative;             /* needed for absolute child */
 }
+
 .mail-wrapper:last-child { border-bottom: none; }
 
 .read-check {
-  flex-shrink: 0;
-  width: 18px;
-  height: 18px;
-  margin-top: 3px;
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   border: 2px solid #999;
   background: white;
   cursor: pointer;
   appearance: none;
   -webkit-appearance: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: inline-block;       /* needed for absolute positioning */
+  margin: 0;                   /* remove any default margin */
   transition: background 0.15s, border-color 0.15s;
+  z-index: 2;                  /* ensure it's above the content */
 }
 .read-check:checked {
   background: #1e6cff;
@@ -282,16 +285,20 @@ body.privacy-mode .mail-from {
 .read-check:checked::after {
   content: "✓";
   color: white;
-  font-size: 13px;
+  font-size: 11px;             /* slightly smaller checkmark */
   font-weight: bold;
   line-height: 1;
+  display: block;
+  text-align: center;
 }
+
 
 /* Move the unread style from .mail to .mail-wrapper */
 .mail-wrapper.unread {
   border-left: 5px solid #9b27b0;
   background: #f9f0ff;
   padding-left: 14px;
+  /* or 14px with border */
 }
 .mail-wrapper.unread .mail-subject {
   font-weight: 800;
@@ -480,7 +487,15 @@ body.privacy-mode .mail-from {
       <button id="forwardBtn" class="secondary" style="font-size:0.85em; padding:4px 12px;">↪ Forward</button>
     </div>
 
-    <div id="modalContent">
+   <div id="modalContent">
+  <!-- Read/Unread toggle -->
+<div style="display:flex; justify-content:flex-end; align-items:center; margin-bottom:8px;">
+  <label style="font-size:0.85em; color:#888; margin-right:6px; cursor:pointer;" for="modalReadCheck">Read</label>
+  <input type="checkbox" id="modalReadCheck" class="read-check" checked
+         style="width:16px; height:16px; border-radius:50%; border:2px solid #999; background:white; cursor:pointer; appearance:none; -webkit-appearance:none; display:inline-block; margin:0; transition:background 0.15s; position:static;">
+</div>
+
+
       <div class="modal-header">
         <h3 class="modal-subject" id="modalSubject">Subject</h3>
         <div class="modal-from" id="modalFrom">From:</div>
@@ -1178,6 +1193,11 @@ async function markAsRead(messageId, folderId, read = true) {
   });
 }
 
+function updateModalCheckbox() {
+  const modalCheck = document.getElementById('modalReadCheck');
+  if (!modalCheck || !currentModalMessage) return;
+  modalCheck.checked = (currentModalMessage.status === "1");
+}
 
 
 /* ===============================
@@ -1231,6 +1251,8 @@ function openEmailModal(messageId, folderId) {
   const stored = messageStore.get(String(messageId));
   if (stored) {
     renderMessageWithMeta(stored);
+    updateModalCheckbox();
+
     // If it's unread, mark as read on Zoho and update UI
     if (stored.status === "0") {
       markAsRead(messageId, folderId).then(() => {
@@ -1353,6 +1375,8 @@ async function fetchFullMessage(messageId, folderId) {
       if (directRes && directRes.ok) {
         const data = await directRes.json();
         renderMessage(data.data);
+        updateModalCheckbox();
+
         if (data.data && data.data.status === "0") {
           markAsRead(messageId, folderId).then(() => {
             if (data.data) data.data.status = "1";
@@ -1377,6 +1401,8 @@ if (wrapper) wrapper.classList.remove('unread');
       if (res.ok) {
                 const data = await res.json();
         renderMessage(data.data);
+        updateModalCheckbox();
+
         if (data.data && data.data.status === "0") {
           markAsRead(messageId, folderId).then(() => {
             if (data.data) data.data.status = "1";
@@ -1763,6 +1789,27 @@ document.getElementById('inbox').addEventListener('change', function(e) {
   document.getElementById('modalCloseBtn').addEventListener('click', closeEmailModal);
   document.getElementById('replyBtn').addEventListener('click', replyToCurrentMessage);
 document.getElementById('forwardBtn').addEventListener('click', forwardCurrentMessage);
+
+// Modal read/unread checkbox toggle
+document.getElementById('modalReadCheck').addEventListener('change', function(e) {
+  const isChecked = e.target.checked;
+  if (!currentModalMessage) return;
+  const messageId = currentModalMessage.messageId || currentModalMessage.id;
+  const folderId = currentModalMessage.folderId;
+  markAsRead(messageId, folderId, isChecked);
+  currentModalMessage.status = isChecked ? "1" : "0";
+  if (messageId) {
+    const stored = messageStore.get(String(messageId));
+    if (stored) stored.status = currentModalMessage.status;
+  }
+  const wrapper = document.querySelector(`.mail-wrapper[data-message-id="${messageId}"]`);
+  if (wrapper) {
+    if (isChecked) wrapper.classList.remove('unread');
+    else wrapper.classList.add('unread');
+  }
+});
+
+  
   document.getElementById('emailModal').addEventListener('click', function(e) { if (e.target === this) closeEmailModal(); });
   document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && document.getElementById('emailModal').classList.contains('active')) closeEmailModal(); });
   updateAllFilters();
