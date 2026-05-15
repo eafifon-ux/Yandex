@@ -213,7 +213,18 @@
   }
   .loading-text { text-align: center; padding: 30px; color: #888; }
   
-  
+  .date-greg {
+  font-weight: bold;
+  color: #1a6dd4;
+}
+
+.utc-pill {
+  background: #eee;
+  color: #555;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.9em;
+}
 
   
 </style>
@@ -570,8 +581,10 @@ function formatUTCTime(dateObj) {
   const d = String(dateObj.getUTCDate()).padStart(2,'0');
   const hh = String(dateObj.getUTCHours()).padStart(2,'0');
   const mm = String(dateObj.getUTCMinutes()).padStart(2,'0');
-  return `${y}-${m}-${d} ${hh}:${mm}Z`;
+  // Return HTML with two spans for date and time
+  return `<span class="date-greg">${y}-${m}-${d}</span> <span class="utc-pill">${hh}:${mm}Z</span>`;
 }
+
 
 // ----- Full GPC date + time (for inbox and modal) -----
 function formatFullGPCWithTime(dateObj) {
@@ -687,8 +700,10 @@ function zohoLogin() {
 =============================== */
 function updateTopBar() {
   const now = new Date();
-  document.getElementById("gpc-display").textContent = formatDisplayTime(now);
+  document.getElementById("gpc-display").innerHTML = formatDisplayTime(now);
 }
+
+
 function showWeekFilter(){ document.getElementById("week-filter-container").style.display="block"; }
 function hideWeekFilter(){ document.getElementById("week-filter-container").style.display="none"; }
 function showDOMFilter(){ document.getElementById("dom-filter-container").style.display="block"; }
