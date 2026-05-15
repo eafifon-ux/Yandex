@@ -1241,33 +1241,40 @@ async function markAsRead(messageId, folderId, read = true) {
   const accountId = await getAccountId();
   if (!accountId) { showModalStatus('❌ No account ID'); return; }
 
-  const url = `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}/status`;
-  const payload = { read };
+  // Two possible endpoints to try:
+  const endpoints = [
+    // 1) Folder-scoped (most likely correct)
+    `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}/status`,
+    // 2) Generic message endpoint (fallback)
+    `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}/status`
+  ];
 
   let lastError = '';
-  // Try direct first (may be CORS-blocked)
-  for (const useProxy of [false, true]) {
-    try {
-      const fetchUrl = useProxy ? `https://corsproxy.io/?${encodeURIComponent(url)}` : url;
-      const res = await fetch(fetchUrl, {
-        method: 'PUT',
-        headers: {
-          'Authorization': 'Zoho-oauthtoken ' + token,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-      if (res.ok) {
-        // Success – update local UI
-        return;
+  for (const baseUrl of endpoints) {
+    for (const useProxy of [false, true]) {
+      try {
+        const fetchUrl = useProxy ? `https://corsproxy.io/?${encodeURIComponent(baseUrl)}` : baseUrl;
+        const res = await fetch(fetchUrl, {
+          method: 'PUT',
+          headers: {
+            'Authorization': 'Zoho-oauthtoken ' + token,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ read })
+        });
+        if (res.ok) {
+          console.log('markAsRead success:', useProxy ? 'proxy' : 'direct', baseUrl);
+          return;
+        }
+        const errorBody = await res.text();
+        lastError = `URL: ${baseUrl.replace(token, 'TOKEN')} via ${useProxy ? 'proxy' : 'direct'} – HTTP ${res.status}: ${errorBody.substring(0, 200)}`;
+      } catch(e) {
+        lastError = `URL: ${baseUrl.replace(token, 'TOKEN')} – ${e.message}`;
       }
-      const errorBody = await res.text();
-      lastError = `HTTP ${res.status}: ${errorBody.substring(0, 200)}`;
-    } catch(e) {
-      lastError = e.message;
     }
   }
-  // Both attempts failed
+
+  // All attempts failed
   const debugInfo = [
     `Time: ${new Date().toISOString()}`,
     `MessageID: ${messageId}`,
@@ -1276,9 +1283,10 @@ async function markAsRead(messageId, folderId, read = true) {
     `Token: ${token ? 'present' : 'missing'}`,
     `Last error: ${lastError}`
   ].join('\n');
-  showModalStatus(`❌ Failed to mark as read. Error: ${lastError}`, true);
+  showModalStatus(`❌ Failed to mark as read. ${lastError}`, true);
   navigator.clipboard.writeText(debugInfo).catch(() => {});
 }
+
 
 
 
