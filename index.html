@@ -670,7 +670,8 @@ function restoreFilterFromState() {
    GLOBAL LOGIN
 =============================== */
 const CLIENT_ID="1000.KH21SIV5VTY4USU27F4S5E2WKAYUJB";
-const REDIRECT_URI="https://eafifon-ux.github.io/Yandex/";
+const REDIRECT_URI = window.location.href.split('?')[0].split('#')[0];
+
 const ACCOUNTS_URL="https://accounts.zoho.in";
 
 function zohoLogin() {
