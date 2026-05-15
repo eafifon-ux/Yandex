@@ -416,6 +416,21 @@ body.privacy-mode .mail-from {
 <div id="emailModal" class="modal-overlay">
   <div class="modal-box">
     <button class="modal-close" id="modalCloseBtn">&times;</button>
+    <!-- Email Reader Modal -->
+<div id="emailModal" class="modal-overlay">
+  <div class="modal-box">
+    <button class="modal-close" id="modalCloseBtn">&times;</button>
+    <!-- NEW: Reply & Forward buttons -->
+    <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+      <button id="replyBtn" class="secondary" style="font-size:0.85em; padding:4px 12px;">↩ Reply</button>
+      <button id="forwardBtn" class="secondary" style="font-size:0.85em; padding:4px 12px;">↪ Forward</button>
+    </div>
+    <div id="modalContent">
+      ...
+    </div>
+  </div>
+</div>
+
     <div id="modalContent">
       <div class="modal-header">
         <h3 class="modal-subject" id="modalSubject">Subject</h3>
@@ -497,6 +512,8 @@ let domActive = false;
 let heptadActive = false;
 let timeMode = 'gpc';  // 'gpc', 'utc', 'sun'
 let privacyMode = false;   // false = normal, true = blacked out
+let currentModalMessage = null; // stores the message object currently displayed in modal
+
 
 
 function getMode() {
@@ -1190,6 +1207,7 @@ function renderMessageWithMeta(msg) {
   
   document.getElementById('modalBody').innerHTML = '<div class="loading-text">Loading message body...</div>';
   fetchContentOnly(msg.messageId || msg.id, msg.folderId);
+  currentModalMessage = msg; // so reply/forward can use it
 }
 
 
@@ -1379,6 +1397,7 @@ function renderMessage(msg) {
         ${rawHtml}
       </details>`;
   }
+  currentModalMessage = msg;
 }
 
 /* ===============================
@@ -1496,6 +1515,58 @@ function togglePrivacyMode() {
   gpcd.style.opacity = privacyMode ? '0.5' : '1';
 }
 
+function replyToCurrentMessage() {
+  if (!currentModalMessage) return;
+  const msg = currentModalMessage;
+  // Extract sender
+  const fromField = msg.fromAddress || msg.sender || msg.senderAddress || msg.from;
+  let from = '';
+  if (typeof fromField === 'string') from = fromField;
+  else if (typeof fromField === 'object') from = fromField.emailAddress || fromField.name || '';
+  if (!from) { alert('Cannot determine sender to reply to.'); return; }
+  
+  // Close modal
+  closeEmailModal();
+  
+  // Fill compose fields
+  document.getElementById('to').value = from;
+  document.getElementById('subject').value = 'Re: ' + (msg.subject || '(No subject)');
+  // Optionally prepend quoted original message
+  const originalBody = msg.content || msg.textContent || msg.summary || '';
+  if (originalBody) {
+    document.getElementById('body').value = '\n\n--- Original message ---\n' + originalBody;
+  } else {
+    document.getElementById('body').value = '';
+  }
+  // Scroll to compose section
+  document.querySelector('.card h2').scrollIntoView({ behavior: 'smooth' });
+}
+
+function forwardCurrentMessage() {
+  if (!currentModalMessage) return;
+  const msg = currentModalMessage;
+  
+  // Close modal
+  closeEmailModal();
+  
+  // Fill compose fields (recipient blank)
+  document.getElementById('to').value = '';
+  document.getElementById('subject').value = 'Fwd: ' + (msg.subject || '(No subject)');
+  
+  // Build forwarded body with metadata
+  const fromField = msg.fromAddress || msg.sender || msg.senderAddress || msg.from;
+  let from = '';
+  if (typeof fromField === 'string') from = fromField;
+  else if (typeof fromField === 'object') from = fromField.emailAddress || fromField.name || '';
+  
+  const dateStr = msg.date ? new Date(msg.date).toLocaleString() : 'unknown';
+  const originalBody = msg.content || msg.textContent || msg.summary || '(No content)';
+  
+  document.getElementById('body').value = '\n\n---------- Forwarded message ---------\nFrom: ' + from + '\nDate: ' + dateStr + '\nSubject: ' + (msg.subject || '(No subject)') + '\n\n' + originalBody;
+  
+  // Scroll to compose
+  document.querySelector('.card h2').scrollIntoView({ behavior: 'smooth' });
+}
 
 
 function updateModeButtons() {
@@ -1565,6 +1636,8 @@ document.addEventListener('DOMContentLoaded',()=>{
     if (messageId) openEmailModal(messageId, folderId);
   });
   document.getElementById('modalCloseBtn').addEventListener('click', closeEmailModal);
+  document.getElementById('replyBtn').addEventListener('click', replyToCurrentMessage);
+document.getElementById('forwardBtn').addEventListener('click', forwardCurrentMessage);
   document.getElementById('emailModal').addEventListener('click', function(e) { if (e.target === this) closeEmailModal(); });
   document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && document.getElementById('emailModal').classList.contains('active')) closeEmailModal(); });
   updateAllFilters();
