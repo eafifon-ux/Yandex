@@ -1237,29 +1237,15 @@ async function handleSend() {
 
 async function markAsRead(messageId, folderId, read = true) {
   const token = getToken();
-  if (!token) { showModalStatus('❌ No auth token'); return; }
   const accountId = await getAccountId();
-  if (!accountId) { showModalStatus('❌ No account ID'); return; }
+  if (!token || !accountId) return showModalStatus('❌ Missing token or account ID');
 
   const attempts = [];
-
-  const proxies = [null, 'https://corsproxy.io/?']; // null = direct
+  const proxies = [null, 'https://corsproxy.io/?'];
   const endpoints = [
-    {
-      url: `https://mail.zoho.in/api/accounts/${accountId}/messages/actions/markAsRead`,
-      method: 'POST',
-      body: { messageIds: [messageId], folderId, read }
-    },
-    {
-      url: `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}`,
-      method: 'PUT',
-      body: { read }
-    },
-    {
-      url: `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}`,
-      method: 'PUT',
-      body: { read }
-    }
+    { url: `https://mail.zoho.in/api/accounts/${accountId}/messages/actions/markAsRead`, method: 'POST', body: { messageIds: [messageId], folderId, read } },
+    { url: `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}`, method: 'PUT', body: { read } },
+    { url: `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}`, method: 'PUT', body: { read } }
   ];
 
   for (const ep of endpoints) {
@@ -1268,39 +1254,26 @@ async function markAsRead(messageId, folderId, read = true) {
         const fetchUrl = proxy ? `${proxy}${encodeURIComponent(ep.url)}` : ep.url;
         const res = await fetch(fetchUrl, {
           method: ep.method,
-          headers: {
-            'Authorization': 'Zoho-oauthtoken ' + token,
-            'Content-Type': 'application/json'
-          },
+          headers: { 'Authorization': 'Zoho-oauthtoken ' + token, 'Content-Type': 'application/json' },
           body: JSON.stringify(ep.body)
         });
         if (res.ok) {
-          attempts.push(`✅ ${ep.method} ${ep.url} (${proxy ? 'proxy' : 'direct'}) -> OK`);
-          console.log('markAsRead success:', attempts[attempts.length-1]);
-          // Success – do not show status banner
-          return;
+          attempts.push(`✅ ${ep.method} OK`);
+          return; // success
         }
-        const errorBody = await res.text();
-        attempts.push(`❌ ${ep.method} ${ep.url.replace(token,'TOKEN')} (${proxy ? 'proxy' : 'direct'}) -> HTTP ${res.status}: ${errorBody.substring(0,150)}`);
+        const err = await res.text();
+        attempts.push(`❌ ${ep.method} ${proxy ? 'proxy' : 'direct'} → HTTP ${res.status}: ${err.substring(0,120)}`);
       } catch(e) {
-        attempts.push(`❌ ${ep.method} ${ep.url.replace(token,'TOKEN')} (${proxy ? 'proxy' : 'direct'}) -> Network error: ${e.message}`);
+        attempts.push(`❌ ${ep.method} ${proxy ? 'proxy' : 'direct'} → Network: ${e.message}`);
       }
     }
   }
 
-  const debugInfo = [
-    `Time: ${new Date().toISOString()}`,
-    `MessageID: ${messageId}`,
-    `FolderID: ${folderId}`,
-    `AccountID: ${accountId}`,
-    `Token: ${token ? 'present' : 'missing'}`,
-    `Attempts:`,
-    ...attempts
-  ].join('\n');
-  showModalStatus(`❌ All attempts failed. See console for details.`, true);
-  navigator.clipboard.writeText(debugInfo).catch(() => {});
-  console.warn('markAsRead all attempts failed:', attempts);
+  // Show details in modal
+  const parts = attempts.map(a => a.replace('❌','').trim()).join(' | ');
+  showModalStatus(`❌ Failed: ${parts}`, true);
 }
+
 
 
 
