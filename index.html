@@ -1045,6 +1045,14 @@ async function sendMail(to, subject, body) {
   return await res.json();
 }
 
+function fallbackCopy(text) {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    document.body.appendChild(textArea);
+    textArea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textArea);
+}
 
 
 async function handleSend() {
@@ -1064,14 +1072,19 @@ async function handleSend() {
     document.getElementById('to').value = '';
     document.getElementById('subject').value = '';
     document.getElementById('body').value = '';
-    document.getElementById('preview').innerHTML = '';
-  } catch (err) {
+} catch (err) {
     const msg = `❌ Send failed\n\n${err.message}\n\n(Error copied to clipboard)`;
     alert(msg);
-  } finally {
-    sendBtn.disabled = false;
-    sendBtn.textContent = '✉️ Send';
-  }
+
+    // Actually try to copy with fallback
+    const errorText = err.message;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(errorText).catch(() => fallbackCopy(errorText));
+    } else {
+        fallbackCopy(errorText);
+    }
+}
+
 }
 
 
