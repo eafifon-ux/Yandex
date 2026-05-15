@@ -1242,61 +1242,49 @@ async function markAsRead(messageId, folderId, read = true) {
 
   const results = [];
   const proxy = 'https://corsproxy.io/?';
+  const base = `https://mail.zoho.in/api/accounts/${accountId}`;
 
-  // Test 1: Action endpoint with "read"
-  const ep1 = `https://mail.zoho.in/api/accounts/${accountId}/messages/actions/markAsRead`;
-  results.push(await tryFetch(`${proxy}${encodeURIComponent(ep1)}`, 'POST',
-    JSON.stringify({ messageIds: [messageId], folderId, read }),
-    token));
+  // Test various payloads for action endpoint
+  const actionUrl = `${proxy}${encodeURIComponent(base + '/messages/actions/markAsRead')}`;
+  const payloads = [
+    { messageIds: [messageId], read },                // original
+    { messageIds: [messageId], markAsRead: read },    // "markAsRead" key
+    { messageIds: [messageId], folderId, markAsRead: read },
+    { messageIds: [messageId], folderId, status: read ? 'read' : 'unread' },
+    { messageIds: [messageId], markAsRead: read, filter: { folderId } }
+  ];
 
-  // Test 2: Action endpoint with "status"
-  results.push(await tryFetch(`${proxy}${encodeURIComponent(ep1)}`, 'POST',
-    JSON.stringify({ messageIds: [messageId], folderId, status: read ? 'read' : 'unread' }),
-    token));
-
-  // Test 3: Single message PATCH
-  const ep3 = `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}`;
-  results.push(await tryFetch(`${proxy}${encodeURIComponent(ep3)}`, 'PATCH',
-    JSON.stringify({ read }),
-    token));
-
-  // Test 4: Single message PUT (original)
-  results.push(await tryFetch(`${proxy}${encodeURIComponent(ep3)}`, 'PUT',
-    JSON.stringify({ read }),
-    token));
-
-  // Build final message
-  let success = false;
-  const lines = results.map(r => {
-    if (r.includes('✅')) success = true;
-    return r;
-  });
-  const report = `markAsRead results:\n${lines.join('\n')}`;
-  navigator.clipboard.writeText(report).catch(() => {}); // auto-copy
-
-  if (success) {
-    showModalStatus('✅ Read status updated!');
-  } else {
-    showModalStatus(`❌ All failed. Copied to clipboard.`, true);
+  for (const body of payloads) {
+    results.push(await tryFetch(actionUrl, 'POST', JSON.stringify(body), token));
   }
+
+  // Also try a single-message patch with different field
+  const msgUrl = `${proxy}${encodeURIComponent(base + '/messages/' + messageId)}`;
+  results.push(await tryFetch(msgUrl, 'PATCH', JSON.stringify({ isRead: read }), token));
+  results.push(await tryFetch(msgUrl, 'PATCH', JSON.stringify({ read }), token));
+
+  // Also try folder-scoped PATCH
+  const folderMsgUrl = `${proxy}${encodeURIComponent(base + '/folders/' + folderId + '/messages/' + messageId)}`;
+  results.push(await tryFetch(folderMsgUrl, 'PATCH', JSON.stringify({ isRead: read }), token));
+  results.push(await tryFetch(folderMsgUrl, 'PATCH', JSON.stringify({ read }), token));
+
+  const success = results.some(r => r.includes('✅'));
+  const report = `markAsRead details:\n${results.join('\n')}`;
+  navigator.clipboard.writeText(report).catch(() => {});
+  showModalStatus(success ? '✅ Read updated!' : '❌ All failed. Copied clipboard', true);
 }
 
-async function tryFetch(url, method, body, token) {
-  try {
-    const res = await fetch(url, {
-      method,
-      headers: {
-        'Authorization': 'Zoho-oauthtoken ' + token,
-        'Content-Type': 'application/json'
-      },
-      body
-    });
-    const text = await res.text();
-    return `${method} ${res.status}: ${text.substring(0,60)}`;
-  } catch(e) {
-    return `${method} Network error: ${e.message}`;
-  }
+function tryFetch(url, method, body, token) {
+  return fetch(url, {
+    method,
+    headers: { 'Authorization': 'Zoho-oauthtoken ' + token, 'Content-Type': 'application/json' },
+    body
+  }).then(async r => {
+    const text = await r.text();
+    return `${method} ${r.status}: ${r.ok ? '✅' : ''} ${text.substring(0,80)}`;
+  }).catch(e => `Network error: ${e.message}`);
 }
+
 
 
 
