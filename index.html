@@ -1184,10 +1184,30 @@ async function markAsRead(messageId, folderId, read = true) {
   const accountId = await getAccountId();
   if (!accountId) return;
 
-  const proxy = "https://corsproxy.io/?";
   const url = `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}/status`;
   const payload = { read };
 
+  // Try direct first, fallback to proxy
+  try {
+    const directRes = await fetch(url, {
+      method: 'PUT',
+      headers: {
+        'Authorization': 'Zoho-oauthtoken ' + token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+    if (directRes.ok) {
+      console.log('markAsRead direct success');
+      return;
+    }
+    console.warn('Direct failed, trying proxy:', directRes.status);
+  } catch(e) {
+    console.warn('Direct error, trying proxy:', e.message);
+  }
+
+  // Fallback to proxy
+  const proxy = "https://corsproxy.io/?";
   try {
     const res = await fetch(proxy + encodeURIComponent(url), {
       method: 'PUT',
@@ -1197,11 +1217,18 @@ async function markAsRead(messageId, folderId, read = true) {
       },
       body: JSON.stringify(payload)
     });
-    if (!res.ok) console.warn('markAsRead failed', res.status);
+    if (!res.ok) {
+      const errorBody = await res.text();
+      console.error('markAsRead proxy failed:', errorBody);
+    } else {
+      console.log('markAsRead proxy success');
+    }
   } catch(e) {
-    console.warn('markAsRead error:', e);
+    console.error('markAsRead proxy exception:', e);
   }
 }
+
+
 
 
 function updateModalCheckbox() {
@@ -1282,7 +1309,9 @@ function openEmailModal(messageId, folderId) {
 
 function closeEmailModal() {
   document.getElementById('emailModal').classList.remove('active');
+  fetchZohoInbox();   // re-fetch inbox to reflect status change
 }
+
 
 function renderMessageWithMeta(msg) {
   if (!msg) {
