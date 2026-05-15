@@ -1241,12 +1241,12 @@ async function markAsRead(messageId, folderId, read = true) {
   const accountId = await getAccountId();
   if (!accountId) { showModalStatus('❌ No account ID'); return; }
 
-  // Two possible endpoints to try:
+  // Correct endpoints (no /status!)
   const endpoints = [
-    // 1) Folder-scoped (most likely correct)
-    `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}/status`,
-    // 2) Generic message endpoint (fallback)
-    `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}/status`
+    // 1) Generic message update
+    `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}`,
+    // 2) Folder‑scoped message update (sometimes required)
+    `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}`
   ];
 
   let lastError = '';
@@ -1274,7 +1274,6 @@ async function markAsRead(messageId, folderId, read = true) {
     }
   }
 
-  // All attempts failed
   const debugInfo = [
     `Time: ${new Date().toISOString()}`,
     `MessageID: ${messageId}`,
@@ -1286,6 +1285,7 @@ async function markAsRead(messageId, folderId, read = true) {
   showModalStatus(`❌ Failed to mark as read. ${lastError}`, true);
   navigator.clipboard.writeText(debugInfo).catch(() => {});
 }
+
 
 
 
