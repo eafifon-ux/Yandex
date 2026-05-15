@@ -969,14 +969,35 @@ html += `
   </div>`;
 }
 
+async function getEmail() {
+  const token = getToken();
+  const accountId = await getAccountId();
+  if (!token || !accountId) return null;
+
+  const url = `https://mail.zoho.in/api/accounts/${accountId}`;
+  const proxy = "https://corsproxy.io/?";
+  const res = await fetch(proxy + encodeURIComponent(url), {
+    headers: { 'Authorization': 'Zoho-oauthtoken ' + token }
+  });
+  if (!res.ok) throw new Error('Failed to fetch account details');
+  const data = await res.json();
+  return data.data?.primaryEmailAddress || data.data?.email || data.data?.mailbox?.[0]?.email;
+}
+
+
 async function sendMail(to, subject, body) {
   const token = getToken();
   if (!token) { alert('Not logged in'); return; }
   const accountId = await getAccountId();
   if (!accountId) return;
 
+  // 1) Get the sender's email
+  const fromEmail = await getEmail();
+  if (!fromEmail) { alert('Could not determine your email address.'); return; }
+
   const url = `https://mail.zoho.in/api/accounts/${accountId}/messages`;
   const payload = {
+    fromAddress: fromEmail,   // ← THIS is the missing field
     toAddress: to,
     subject: subject || '(No subject)',
     content: body,
@@ -996,13 +1017,13 @@ async function sendMail(to, subject, body) {
   if (!res.ok) {
     const errorBody = await res.text();
     const errorMsg = `HTTP ${res.status}: ${errorBody.substring(0, 300)}`;
-    // Auto‑copy to clipboard
     try { await navigator.clipboard.writeText(errorMsg); } catch(e) {}
     throw new Error(errorMsg);
   }
 
   return await res.json();
 }
+
 
 
 async function handleSend() {
