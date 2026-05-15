@@ -253,7 +253,12 @@ body.privacy-mode .mail-from {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  padding: 14px 28px 14px 14px;  /* increased right padding to 28px */
+  padding: 14px;               /* was 14px 28px 14px 14px */
+  border-bottom: 1px solid #eee;
+  cursor: pointer;
+  position: relative;          /* optional, but keep if used elsewhere */
+}
+
   border-bottom: 1px solid #eee;
   cursor: pointer;
   position: relative;             /* needed for absolute child */
@@ -1023,7 +1028,6 @@ function renderInbox(messages) {
       <div class="mail-wrapper${isUnread ? ' unread' : ''}"
            data-message-id="${escapeHtml(messageId || '')}"
            data-folder-id="${escapeHtml(msg.folderId || '')}">
-        <input type="checkbox" class="read-check" ${isUnread ? '' : 'checked'}>
         <div style="flex:1; min-width:0;">
           <div class="mail-subject">${escapeHtml(sub)}</div>
           <div class="mail-sender">${escapeHtml(from)}</div>
@@ -1760,31 +1764,7 @@ document.getElementById('inbox').addEventListener('click', function(e) {
     if (messageId) openEmailModal(messageId, folderId);
 });
 
-// Checkbox toggle → instant read/unread + API sync
-document.getElementById('inbox').addEventListener('change', function(e) {
-    if (!e.target.classList.contains('read-check')) return;
-    const wrapper = e.target.closest('.mail-wrapper');
-    if (!wrapper) return;
-    const messageId = wrapper.dataset.messageId;
-    const folderId = wrapper.dataset.folderId;
-    const isChecked = e.target.checked;
 
-    // Instant UI update
-    if (isChecked) {
-        wrapper.classList.remove('unread');
-    } else {
-        wrapper.classList.add('unread');
-    }
-
-    // Update local store
-    const stored = messageStore.get(messageId);
-    if (stored) {
-        stored.status = isChecked ? "1" : "0";
-    }
-
-    // Sync with Zoho server
-    markAsRead(messageId, folderId, isChecked);
-});
 
   document.getElementById('modalCloseBtn').addEventListener('click', closeEmailModal);
   document.getElementById('replyBtn').addEventListener('click', replyToCurrentMessage);
