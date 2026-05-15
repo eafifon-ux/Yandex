@@ -1238,27 +1238,54 @@ async function handleSend() {
 async function markAsRead(messageId, folderId, read = true) {
   const token = getToken();
   const accountId = await getAccountId();
-  if (!token || !accountId) {
-    showModalStatus('❌ Missing token or ID', true);
-    return;
+  if (!token || !accountId) { showModalStatus('No token/ID', true); return; }
+
+  const proxy = 'https://corsproxy.io/?';
+  const base = `https://mail.zoho.in/api/accounts/${accountId}`;
+  const results = [];
+
+  // Test GET folders (list) – should work if API is enabled
+  const folderUrl = `${proxy}${encodeURIComponent(base + '/folders')}`;
+  results.push(await tryFetch(folderUrl, 'GET', null, token));
+
+  // Test GET a single message (just one)
+  const msgUrl = `${proxy}${encodeURIComponent(base + '/messages/' + messageId)}`;
+  results.push(await tryFetch(msgUrl, 'GET', null, token));
+
+  // Try the action endpoint again with the correct accountId
+  const actionUrl = `${proxy}${encodeURIComponent(base + '/messages/actions/markAsRead')}`;
+  results.push(await tryFetch(actionUrl, 'POST', JSON.stringify({ messageIds: [messageId], read: true }), token));
+
+  // Also try without proxy (direct) with mode: 'no-cors' for POST
+  try {
+    const direct = await fetch(`https://mail.zoho.in/api/accounts/${accountId}/messages/actions/markAsRead`, {
+      method: 'POST',
+      headers: { 'Authorization': 'Zoho-oauthtoken ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messageIds: [messageId], read: true }),
+      mode: 'no-cors'
+    });
+    results.push('Direct no-cors: sent (no response)');
+  } catch(e) {
+    results.push('Direct no-cors error: ' + e.message);
   }
 
-  const url = `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}`;
-  try {
-    await fetch(url, {
-      method: 'PUT',
-      headers: {
-        'Authorization': 'Zoho-oauthtoken ' + token,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ read: true }),
-      mode: 'no-cors'   // ignore CORS – request still sent
-    });
-    // No response reading possible, assume success
-    showModalStatus('✅ Attempted (no-cors) – refresh inbox to check');
-  } catch(e) {
-    showModalStatus('❌ Network error: ' + e.message);
-  }
+  const report = results.join('\n');
+  navigator.clipboard.writeText(report).catch(() => {});
+  showModalStatus('✅ Clipboard has diagnostic results. Paste here.', true);
+}
+
+function tryFetch(url, method, body, token) {
+  const opts = {
+    method,
+    headers: { 'Authorization': 'Zoho-oauthtoken ' + token, 'Content-Type': 'application/json' }
+  };
+  if (body) opts.body = body;
+  return fetch(url, opts)
+    .then(async r => {
+      const text = await r.text();
+      return `${method} ${r.status}: ${r.ok?'✅':''} ${text.substring(0,60)}`;
+    })
+    .catch(e => `${method} Network error: ${e.message}`);
 }
 
 
