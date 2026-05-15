@@ -428,6 +428,7 @@ body.privacy-mode .mail-from {
     <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
       <button id="replyBtn" class="secondary" style="font-size:0.85em; padding:4px 12px;">↩ Reply</button>
       <button id="forwardBtn" class="secondary" style="font-size:0.85em; padding:4px 12px;">↪ Forward</button>
+      <button id="readToggleBtn" class="secondary" style="font-size:0.85em; padding:4px 12px; display:none;">🔵 Mark as unread</button>
     </div>
 
     <div id="modalContent">
@@ -936,6 +937,28 @@ function applyFilters(messages) {
 
 const messageStore = new Map();
 
+// ---- Read status overrides (persistent with localStorage) ----
+const readStatusOverrides = new Map();
+
+function loadReadOverrides() {
+  try {
+    const raw = localStorage.getItem('zohoReadOverrides');
+    if (raw) {
+      const obj = JSON.parse(raw);
+      Object.keys(obj).forEach(k => readStatusOverrides.set(k, obj[k]));
+    }
+  } catch (e) {}
+}
+
+function saveReadOverrides() {
+  const obj = {};
+  readStatusOverrides.forEach((v, k) => obj[k] = v);
+  localStorage.setItem('zohoReadOverrides', JSON.stringify(obj));
+}
+
+loadReadOverrides();
+
+
 function renderInbox(messages) {
   const inboxDiv = document.getElementById("inbox");
   if (!messages || messages.length === 0) {
@@ -952,7 +975,9 @@ function renderInbox(messages) {
     const from = msg.fromAddress || msg.sender || "Unknown";
     const date = parseDate(msg);
     const snippet = msg.summary || msg.snippet || "";
-    const isUnread = msg.status === "0";   // "0" = unread in Zoho API
+    const storedOverride = readStatusOverrides.get(String(messageId));
+const isUnread = storedOverride !== undefined ? (storedOverride === "0") : (msg.status === "0");
+
 
 
     html += `
@@ -1146,6 +1171,7 @@ async function loadProfile(){
 function openEmailModal(messageId, folderId) {
   const modal = document.getElementById('emailModal');
   modal.classList.add('active');
+  document.getElementById('readToggleBtn').style.display = 'none';
   document.getElementById('modalSubject').textContent = 'Loading...';
   document.getElementById('modalFrom').textContent = '';
   document.getElementById('modalTo').textContent = '';
@@ -1162,7 +1188,10 @@ function openEmailModal(messageId, folderId) {
 
 function closeEmailModal() {
   document.getElementById('emailModal').classList.remove('active');
+  document.getElementById('readToggleBtn').style.display = 'none';
+  fetchZohoInbox(); // reflect the change in inbox
 }
+
 
 function renderMessageWithMeta(msg) {
   if (!msg) {
@@ -1196,6 +1225,14 @@ function renderMessageWithMeta(msg) {
   
   // Make modal look like SUN mode (blue date + orange time) in ALL modes
   modalEl.innerHTML = getGPCBadgeHTML(dateObj);
+  const toggleBtn = document.getElementById('readToggleBtn');
+toggleBtn.style.display = 'inline-block';
+const msgId = String(msg.messageId || msg.id);
+const override = readStatusOverrides.get(msgId);
+const currentStatus = override !== undefined ? override : (msg.status || "1");
+toggleBtn.innerHTML = currentStatus === "0" ? '🔵 Mark as read' : '⭕ Mark as unread';
+toggleBtn.onclick = () => toggleReadStatusInModal(msgId, currentStatus);
+
   
   document.getElementById('modalBody').innerHTML = '<div class="loading-text">Loading message body...</div>';
   fetchContentOnly(msg.messageId || msg.id, msg.folderId);
@@ -1559,6 +1596,19 @@ function forwardCurrentMessage() {
   // Scroll to compose
   document.querySelector('.card h2').scrollIntoView({ behavior: 'smooth' });
 }
+
+function toggleReadStatusInModal(messageId, currentStatus) {
+  const newStatus = currentStatus === "0" ? "1" : "0";
+  readStatusOverrides.set(String(messageId), newStatus);
+  saveReadOverrides();
+  const btn = document.getElementById('readToggleBtn');
+  btn.innerHTML = newStatus === "0" ? '🔵 Mark as read' : '⭕ Mark as unread';
+  // also update the messageStore for immediate inbox refresh
+  const stored = messageStore.get(String(messageId));
+  if (stored) stored.status = newStatus;
+  // refresh inbox when modal closes
+}
+
 
 
 function updateModeButtons() {
