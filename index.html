@@ -541,6 +541,13 @@ body.privacy-mode .mail-from {
       <div class="modal-body" id="modalBody">
         <div class="loading-text">Loading message…</div>
       </div>
+      <!-- Debug info (collapsible) -->
+<details style="margin-top:12px; border-top:1px solid #ccc; padding-top:10px;">
+  <summary style="cursor:pointer; color:#1e6cff; font-weight:bold;">🐛 Debug Info</summary>
+  <pre id="debug-clipboard" style="white-space:pre-wrap; background:#f5f5f5; padding:8px; border-radius:4px; font-size:0.8em; max-height:200px; overflow:auto;"></pre>
+  <button class="copy-btn" onclick="copyDebugToClipboard()">📋 Copy all debug info</button>
+</details>
+
     </div>
 </div>
 
@@ -1078,6 +1085,30 @@ function renderInbox(messages) {
 function formatGregorian(d){ const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${dd}`; }
 function escapeHtml(t){ const d=document.createElement('div'); d.textContent=t; return d.innerHTML; }
 
+function copyDebugToClipboard() {
+  const el = document.getElementById('debug-clipboard');
+  const text = el ? el.textContent : 'No debug info';
+  navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+}
+
+// Collect debug info into the pre element when modal opens
+function updateDebugInfo() {
+  const pre = document.getElementById('debug-clipboard');
+  if (!pre) return;
+  const msg = currentModalMessage;
+  const info = [
+    `Time: ${new Date().toISOString()}`,
+    `MessageID: ${msg ? (msg.messageId || msg.id) : 'none'}`,
+    `FolderID: ${msg ? msg.folderId : 'none'}`,
+    `Status (local): ${msg ? msg.status : 'none'} (0=unread,1=read)`,
+    `Token present: ${getToken() ? 'yes' : 'no'}`,
+    `AccountID: ${cachedAccountId || 'not cached'}`,
+    `Mode: ${getMode()} | Heptad: ${heptadActive} | Time: ${timeMode}`
+  ];
+  pre.textContent = info.join('\n');
+}
+
+
 async function fetchZohoInbox() {
   const token=getToken();
   if(!token){
@@ -1206,54 +1237,70 @@ async function handleSend() {
 
 async function markAsRead(messageId, folderId, read = true) {
   const token = getToken();
-  if (!token) return;
+  if (!token) { showModalStatus('No auth token'); return; }
   const accountId = await getAccountId();
-  if (!accountId) return;
+  if (!accountId) { showModalStatus('No account ID'); return; }
 
   const url = `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}/status`;
   const payload = { read };
 
   // Try direct first, fallback to proxy
-  try {
-    const directRes = await fetch(url, {
-      method: 'PUT',
-      headers: {
-        'Authorization': 'Zoho-oauthtoken ' + token,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
-    if (directRes.ok) {
-      console.log('markAsRead direct success');
-      return;
-    }
-    console.warn('Direct failed, trying proxy:', directRes.status);
-  } catch(e) {
-    console.warn('Direct error, trying proxy:', e.message);
-  }
-
-  // Fallback to proxy
-  const proxy = "https://corsproxy.io/?";
-  try {
-    const res = await fetch(proxy + encodeURIComponent(url), {
-      method: 'PUT',
-      headers: {
-        'Authorization': 'Zoho-oauthtoken ' + token,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
-    if (!res.ok) {
+  let lastError = '';
+  for (const useProxy of [false, true]) {
+    try {
+      const fetchUrl = useProxy ? `https://corsproxy.io/?${encodeURIComponent(url)}` : url;
+      const res = await fetch(fetchUrl, {
+        method: 'PUT',
+        headers: {
+          'Authorization': 'Zoho-oauthtoken ' + token,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        console.log('markAsRead success', useProxy ? 'via proxy' : 'direct');
+        return;
+      }
       const errorBody = await res.text();
-      console.error('markAsRead proxy failed:', errorBody);
-    } else {
-      console.log('markAsRead proxy success');
+      lastError = `HTTP ${res.status}: ${errorBody.substring(0, 200)}`;
+      console.warn('markAsRead failed', lastError);
+    } catch(e) {
+      lastError = e.message;
+      console.warn('markAsRead error', e);
     }
-  } catch(e) {
-    console.error('markAsRead proxy exception:', e);
   }
+  // Both attempts failed
+  const debugInfo = `MessageID: ${messageId}\nFolderID: ${folderId}\nAccountID: ${accountId}\nToken: ${token ? 'present ('+token.substring(0,10)+'...)' : 'missing'}\nLast error: ${lastError}\nTime: ${new Date().toISOString()}`;
+  showModalStatus(`❌ Failed to mark as read – ${lastError}. Debug info: ${debugInfo}`);
+  // Also copy to clipboard automatically for convenience
+  navigator.clipboard.writeText(debugInfo).catch(() => {});
 }
 
+
+function showModalStatus(message, isError = true) {
+  const existing = document.querySelector('#modalContent .api-status');
+  if (existing) existing.remove();
+  const div = document.createElement('div');
+  div.className = 'api-status';
+  div.style.cssText = `padding:8px 12px; border-radius:6px; margin-bottom:8px; font-size:0.85em; display:flex; justify-content:space-between; align-items:center; ${isError ? 'background:#ffe0e0;color:#b00;' : 'background:#e8f5e8;color:#4CAF50;'}`;
+  div.innerHTML = `<span>${message}</span>
+    <button class="copy-btn" onclick="copyStatusToClipboard()" style="background:#555;color:white;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;">📋 Copy</button>`;
+  const container = document.querySelector('#modalContent > div:first-child'); // after the flex container with checkbox
+  if (container) {
+    container.parentNode.insertBefore(div, container.nextSibling);
+  } else {
+    document.getElementById('modalContent').prepend(div);
+  }
+  // Auto-hide after 5 seconds
+  setTimeout(() => { if (div.parentNode) div.remove(); }, 5000);
+}
+
+function copyStatusToClipboard() {
+  const el = document.querySelector('.api-status span');
+  if (!el) return;
+  const text = el.textContent;
+  navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+}
 
 
 
@@ -1367,6 +1414,8 @@ function renderMessageWithMeta(msg) {
   document.getElementById('modalBody').innerHTML = '<div class="loading-text">Loading message body...</div>';
   fetchContentOnly(msg.messageId || msg.id, msg.folderId);
   currentModalMessage = msg; // so reply/forward can use it
+  updateDebugInfo();
+
 }
 
 
