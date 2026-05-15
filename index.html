@@ -1603,7 +1603,7 @@ function toggleReadStatusInModal(messageId, currentStatus) {
   readStatusOverrides.set(String(messageId), newStatus);
   saveReadOverrides();
   const btn = document.getElementById('readToggleBtn');
-  btn.textContent = newStatus === "0" ? '⭕' : '🔵';
+  btn.textContent = newStatus === "0" ? '🔵' : '⭕';
 
   // also update the messageStore for immediate inbox refresh
   const stored = messageStore.get(String(messageId));
