@@ -416,20 +416,27 @@ body.privacy-mode .mail-from {
 <div id="emailModal" class="modal-overlay">
   <div class="modal-box">
     <button class="modal-close" id="modalCloseBtn">&times;</button>
-    <!-- Email Reader Modal -->
-<div id="emailModal" class="modal-overlay">
-  <div class="modal-box">
-    <button class="modal-close" id="modalCloseBtn">&times;</button>
-    <!-- NEW: Reply & Forward buttons -->
+    
+    <!-- Reply & Forward buttons – visible inside modal -->
     <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
       <button id="replyBtn" class="secondary" style="font-size:0.85em; padding:4px 12px;">↩ Reply</button>
       <button id="forwardBtn" class="secondary" style="font-size:0.85em; padding:4px 12px;">↪ Forward</button>
     </div>
+
     <div id="modalContent">
-      ...
+      <div class="modal-header">
+        <h3 class="modal-subject" id="modalSubject">Subject</h3>
+        <div class="modal-from" id="modalFrom">From:</div>
+        <div class="modal-to" id="modalTo">To:</div>
+        <div class="modal-date-zulu" id="modalDateZulu">Loading…</div>
+      </div>
+      <div class="modal-body" id="modalBody">
+        <div class="loading-text">Loading message…</div>
+      </div>
     </div>
   </div>
 </div>
+
 
     <div id="modalContent">
       <div class="modal-header">
@@ -999,21 +1006,35 @@ async function fetchZohoInbox() {
 /* ===============================
    PREVIEW
 =============================== */
-function previewMail(){
-  const to=document.getElementById("to").value;
-  const subj=document.getElementById("subject").value;
-  let body=document.getElementById("body").value;
-  body=body.replace(/\d{4}-\d{2}-\d{2}/g,m=>{
-    const d=new Date(m+"T00:00:00Z");
-    const g=GPC.gpcFromDays(GPC.daysFromGregorian(d));
-    return `${m} (${g.year}.${String(g.doy).padStart(3,"0")})`;
+function previewMail() {
+  const to = document.getElementById('to').value.trim();
+  const subj = document.getElementById('subject').value.trim();
+  let body = document.getElementById('body').value.trim();
+  
+  // Replace ISO dates in body with additional GPC notation
+  body = body.replace(/\d{4}-\d{2}-\d{2}/g, match => {
+    const d = new Date(match + "T00:00:00Z");
+    if (isNaN(d.getTime())) return match;
+    const g = GPC.gpcFromDays(GPC.daysFromGregorian(d));
+    return `${match} (${g.year}.${String(g.doy).padStart(3,"0")})`;
   });
-  const now=new Date();
-  const currentTime = formatDisplayTime(now);
+
+  const now = new Date();
+  const currentTime = formatDisplayTime(now);  // already uses timeMode
   const label = timeMode === 'utc' ? 'UTC' : (timeMode === 'sun' ? 'SUN' : 'GPC');
-  const final = `📅 ${label}: ${currentTime}\n\n${body}\n\n----------------\n`;
-  const greg = formatGregorian(now);
-  document.getElementById("preview").// Inside renderInbox(), replace the html += ` ... ` part with this:
+
+  // Build preview HTML
+  const previewHTML = `
+    <div style="border:1px solid #ccc;border-radius:8px;padding:15px;background:#fafafa;">
+      <p><strong>To:</strong> ${escapeHtml(to) || '(empty)'}</p>
+      <p><strong>Subject:</strong> ${escapeHtml(subj) || '(empty)'}</p>
+      <p><strong>Time layer:</strong> ${label} · ${currentTime}</p>
+      <hr>
+      <pre style="white-space:pre-wrap;font-family:inherit;margin:0;font-size:0.95em;">${escapeHtml(body || '(empty)')}</pre>
+    </div>
+  `;
+  
+  document.getElementById('preview').innerHTML = previewHTML;
 
 html += `
   <div class="mail" data-message-id="\( {escapeHtml(messageId || '')}" data-folder-id=" \){escapeHtml(msg.folderId || '')}" style="cursor:pointer;">
