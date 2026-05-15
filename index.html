@@ -1072,20 +1072,24 @@ async function handleSend() {
     document.getElementById('to').value = '';
     document.getElementById('subject').value = '';
     document.getElementById('body').value = '';
-} catch (err) {
-    const msg = `❌ Send failed\n\n${err.message}\n\n(Error copied to clipboard)`;
+  } catch (err) {
+    const errorText = err.message;
+    const msg = `❌ Send failed\n\n${errorText}\n\n(Error copied to clipboard)`;
     alert(msg);
 
-    // Actually try to copy with fallback
-    const errorText = err.message;
+    // Actually copy error to clipboard
     if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(errorText).catch(() => fallbackCopy(errorText));
+      navigator.clipboard.writeText(errorText).catch(() => fallbackCopy(errorText));
     } else {
-        fallbackCopy(errorText);
+      fallbackCopy(errorText);
     }
+  } finally {
+    // ✅ RE-ENABLE BUTTON AFTER EVERYTHING
+    sendBtn.disabled = false;
+    sendBtn.textContent = '✉️ Send';
+  }
 }
 
-}
 
 
 /* ===============================
