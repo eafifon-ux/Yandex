@@ -249,7 +249,20 @@ body.privacy-mode .mail-from {
   font-weight: 800; /* extra bold subject */
 }
 
-  
+  .mail {
+  position: relative;
+  padding-left: 20px;
+  transition: background 0.2s;
+}
+
+.mail.unread {
+  border-left: 5px solid #9b27b0;
+  background: #f9f0ff;
+}
+
+.mail.unread:hover {
+  background: #f0e0ff;
+}
 </style>
 </head>
 <body>
@@ -845,20 +858,7 @@ function nextSeason(){ const s=currentSeason===null?1:(currentSeason===4?1:curre
 function setDOYMonth(m){
   currentDOYMonth=m;
   document.querySelectorAll('.doy-month').forEach(td=>{ td.classList.remove('active'); if(Number(td.dataset.month)===m) td.classList.add('active'); });
-  // Click on the left unread bar to toggle read/unread
-document.getElementById('inbox').addEventListener('click', async function(e) {
-  const mailDiv = e.target.closest('.mail');
-  if (!mailDiv) return;
   
-  const messageId = mailDiv.dataset.messageId;
-  const folderId = mailDiv.dataset.folderId;
-  
-  // If user clicked the left border area (unread bar)
-  if (e.offsetX < 20 && mailDiv.classList.contains('unread')) {
-    e.stopImmediatePropagation();
-    await markAsRead(messageId, folderId, true); // mark as read
-  }
-});
   document.getElementById('doy-filter-status').style.display='inline-block';
   document.getElementById('current-doy-month').textContent=dosMonthNames[m-1];
   fetchZohoInbox();
@@ -901,6 +901,7 @@ function parseDate(msg) {
 async function markAsRead(messageId, folderId, read = true) {
   const token = getToken();
   if (!token) return false;
+  
   const accountId = await getAccountId();
   if (!accountId) return false;
   
@@ -915,23 +916,23 @@ async function markAsRead(messageId, folderId, read = true) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        status: read ? "1" : "0" // 1 = read, 0 = unread
+        status: read ? "1" : "0"
       })
     });
     
     if (res.ok) {
-      // Update local store
       const msg = messageStore.get(String(messageId));
       if (msg) msg.status = read ? "1" : "0";
       
-      // Refresh inbox visually
-      fetchZohoInbox();
       return true;
+    } else {
+      console.error("Mark read failed:", await res.text());
+      return false;
     }
   } catch (e) {
-    console.error("Mark read/unread failed", e);
+    console.error("Mark read/unread error:", e);
+    return false;
   }
-  return false;
 }
 
 function filterByDay(messages, dayIndex) {
@@ -1672,13 +1673,30 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.querySelector('#doy-filter-status .filter-remove').addEventListener('click',clearDOYFilter);
   document.querySelectorAll('.dos-season').forEach(td=>{ td.addEventListener('click',()=>setSeason(Number(td.dataset.season))); });
   document.querySelectorAll('.doy-month').forEach(td=>{ td.addEventListener('click',()=>setDOYMonth(Number(td.dataset.month))); });
-  document.getElementById('inbox').addEventListener('click', function(e) {
-    const mailDiv = e.target.closest('.mail');
-    if (!mailDiv) return;
-    const messageId = mailDiv.dataset.messageId;
-    const folderId = mailDiv.dataset.folderId;
-    if (messageId) openEmailModal(messageId, folderId);
-  });
+  // Better Read/Unread Handler
+document.getElementById('inbox').addEventListener('click', async function(e) {
+  const mailDiv = e.target.closest('.mail');
+  if (!mailDiv) return;
+  
+  const messageId = mailDiv.dataset.messageId;
+  const folderId = mailDiv.dataset.folderId;
+  
+  if (!messageId) return;
+  
+  const isCurrentlyUnread = mailDiv.classList.contains('unread');
+  
+  // Toggle read status
+  const success = await markAsRead(messageId, folderId, !isCurrentlyUnread);
+  
+  if (success) {
+    // Visual feedback
+    if (!isCurrentlyUnread) {
+      mailDiv.classList.add('unread');
+    } else {
+      mailDiv.classList.remove('unread');
+    }
+  }
+});
   document.getElementById('modalCloseBtn').addEventListener('click', closeEmailModal);
   document.getElementById('replyBtn').addEventListener('click', replyToCurrentMessage);
 document.getElementById('forwardBtn').addEventListener('click', forwardCurrentMessage);
