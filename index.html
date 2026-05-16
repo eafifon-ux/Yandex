@@ -410,6 +410,14 @@ body.privacy-mode .mail-from {
   <div class="card">
     <h2>Inbox</h2>
     <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+     <div style="margin-bottom: 10px; display: flex; align-items: center; gap: 10px;">
+  <label for="folderSelect">Folder:</label>
+  <select id="folderSelect" style="padding: 6px; border-radius: 6px; border: 1px solid #ccc;">
+    <option value="">— All Inbox —</option>
+  </select>
+</div>
+
+
       <button id="loadInboxBtn" onclick="fetchZohoInbox()">Load Inbox</button>
       <span style="line-height:2; color:#888;">(Filters applied)</span>
     </div>
@@ -1012,8 +1020,16 @@ async function fetchZohoInbox() {
   if(!accountId){ inboxDiv.innerHTML='<div class="error-message">Account error</div>'; return; }
   try{
     const proxy="https://corsproxy.io/?";
-    const url=`https://mail.zoho.in/api/accounts/${accountId}/messages/view?limit=50`;
-    const res=await fetch(proxy+encodeURIComponent(url),{headers:{Authorization:"Zoho-oauthtoken "+token}});
+    const folderSelect = document.getElementById('folderSelect');
+    const folderId = folderSelect ? folderSelect.value : '';
+    let apiUrl;
+    if (folderId) {
+      apiUrl = `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages?limit=50`;
+    } else {
+      apiUrl = `https://mail.zoho.in/api/accounts/${accountId}/messages/view?limit=50`;
+    }
+    const url = proxy + encodeURIComponent(apiUrl);
+    const res=await fetch(url,{headers:{Authorization:"Zoho-oauthtoken "+token}});
     if(!res.ok){ inboxDiv.innerHTML=`<p>Error ${res.status}</p>`; return; }
     const data=await res.json();
     if(!data.data||data.data.length===0){ inboxDiv.innerHTML="<p>No messages.</p>"; return; }
@@ -1021,6 +1037,7 @@ async function fetchZohoInbox() {
     renderInbox(filtered);
   }catch(e){ inboxDiv.innerHTML=`<p>Network error: ${e.message}</p>`; }
 }
+
 
 /* ===============================
    PREVIEW
@@ -1136,6 +1153,7 @@ function getToken() {
   return new URLSearchParams(hash).get("access_token");
 }
 let cachedAccountId=null;
+
 async function getAccountId() {
   if(cachedAccountId) return cachedAccountId;
   const token=getToken();
@@ -1149,6 +1167,7 @@ async function getAccountId() {
     return cachedAccountId;
   } catch(e){return null;}
 }
+
 async function loadProfile(){
   const token=getToken();
   if(!token) return;
@@ -1161,8 +1180,46 @@ async function loadProfile(){
     document.getElementById("userEmail").textContent=d.email||"Zoho User";
     const g=GPC.gpcFromDays(GPC.daysFromGregorian(new Date()));
     document.getElementById("userGPC").textContent=`Today: ${g.year}.${String(g.doy).padStart(3,"0")}`;
+    // Populate folder list after successful login
+    await populateFolderList();
   }catch(e){}
 }
+
+
+// ====== NEW: Folder fetching ======
+async function fetchFolders() {
+  const token = getToken();
+  if (!token) return [];
+  const accountId = await getAccountId();
+  if (!accountId) return [];
+  const proxy = "https://corsproxy.io/?";
+  const url = `https://mail.zoho.in/api/accounts/${accountId}/folders`;
+  try {
+    const res = await fetch(proxy + encodeURIComponent(url), {
+      headers: { Authorization: "Zoho-oauthtoken " + token }
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.data || [];
+  } catch (e) {
+    console.error("Folder fetch error:", e);
+    return [];
+  }
+}
+
+async function populateFolderList() {
+  const folders = await fetchFolders();
+  const select = document.getElementById('folderSelect');
+  if (!select) return;
+  select.innerHTML = '<option value="">— All Inbox —</option>';
+  folders.forEach(f => {
+    const opt = document.createElement('option');
+    opt.value = f.folderId;
+    opt.textContent = f.folderName;
+    select.appendChild(opt);
+  });
+}
+
 
 /* ===============================
    MODAL FUNCTIONS
@@ -1692,6 +1749,9 @@ document.getElementById('forwardBtn').addEventListener('click', forwardCurrentMe
 document.getElementById('gpc-display').style.cursor = 'pointer';
 document.getElementById('gpc-display').title = 'Click to toggle privacy mode';
 document.getElementById('gpc-display').addEventListener('click', togglePrivacyMode);
+document.getElementById('folderSelect').addEventListener('change', function() {
+  fetchZohoInbox();
+});
 
 });
 
