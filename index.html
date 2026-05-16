@@ -406,16 +406,24 @@ body.privacy-mode .mail-from {
 
   </div>
 
-  <!-- INBOX -->
-  <div class="card">
-    <h2>Inbox</h2>
-    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
-     <div style="margin-bottom: 10px; display: flex; align-items: center; gap: 10px;">
-  <label for="folderSelect">Folder:</label>
-  <select id="folderSelect" style="padding: 6px; border-radius: 6px; border: 1px solid #ccc;">
-    <option value="">— All Inbox —</option>
-  </select>
+<!-- INBOX -->
+<div class="card">
+  <h2>Inbox</h2>
+  <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+    <div style="margin-bottom: 10px; display: flex; align-items: center; gap: 10px;">
+      <label for="folderSelect">Folder:</label>
+      <select id="folderSelect" style="padding: 6px; border-radius: 6px; border: 1px solid #ccc;">
+        <option value="">— All Inbox —</option>
+      </select>
+      <!-- DEBUG DIV – shows API folder response -->
+      <div id="folderDebug" style="background:#ffe0e0; color:#b00; padding:10px; margin:10px 0; border:1px solid red; font-size:0.9em; white-space:pre-wrap; display:none; width:100%;"></div>
+    </div>
+    <button id="loadInboxBtn" onclick="fetchZohoInbox()">Load Inbox</button>
+    <span style="line-height:2; color:#888;">(Filters applied)</span>
+  </div>
+  <div id="inbox"></div>
 </div>
+
 
 
       <button id="loadInboxBtn" onclick="fetchZohoInbox()">Load Inbox</button>
@@ -1195,23 +1203,49 @@ async function fetchFolders() {
   if (!accountId) return [];
   const proxy = "https://corsproxy.io/?";
   const url = `https://mail.zoho.in/api/accounts/${accountId}/folders`;
+  const debugEl = document.getElementById('folderDebug');
   try {
-    const res = await fetch(proxy + encodeURIComponent(url), {
+    const fullUrl = proxy + encodeURIComponent(url);
+    const res = await fetch(fullUrl, {
       headers: { Authorization: "Zoho-oauthtoken " + token }
     });
-    if (!res.ok) return [];
+    if (!res.ok) {
+      if (debugEl) {
+        debugEl.textContent = `HTTP ${res.status}: ${res.statusText}\nURL: ${fullUrl.replace(token, 'TOKEN')}`;
+        debugEl.style.display = 'block';
+      }
+      return [];
+    }
     const data = await res.json();
+    // Show success on page
+    if (debugEl) {
+      debugEl.textContent = `✅ HTTP ${res.status}\nFolders found: ${(data.data || []).length}\n${JSON.stringify(data.data || [], null, 2).substring(0, 500)}`;
+      debugEl.style.display = 'block';
+    }
     return data.data || [];
   } catch (e) {
+    if (debugEl) {
+      debugEl.textContent = `❌ Network error: ${e.message}`;
+      debugEl.style.display = 'block';
+    }
     console.error("Folder fetch error:", e);
     return [];
   }
 }
 
+
 async function populateFolderList() {
   const folders = await fetchFolders();
+  const debugEl = document.getElementById('folderDebug');
+  if (debugEl) {
+    debugEl.textContent = 'Folders returned: ' + (folders ? folders.length : 0) + '\n' + JSON.stringify(folders, null, 2);
+    debugEl.style.display = 'block';
+  }
   const select = document.getElementById('folderSelect');
-  if (!select) return;
+  if (!select) {
+    if (debugEl) debugEl.textContent += '\nERROR: folderSelect element not found!';
+    return;
+  }
   select.innerHTML = '<option value="">— All Inbox —</option>';
   folders.forEach(f => {
     const opt = document.createElement('option');
@@ -1220,6 +1254,7 @@ async function populateFolderList() {
     select.appendChild(opt);
   });
 }
+
 
 
 /* ===============================
