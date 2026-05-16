@@ -1057,23 +1057,36 @@ async function debugMessage(messageId) {
   const accountId = await getAccountId();
   if (!token || !accountId) { alert('Not logged in'); return; }
   const proxy = "https://corsproxy.io/?";
-  const url = proxy + encodeURIComponent(`https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}`);
   const pre = document.getElementById('raw-response');
   pre.style.display = 'block';
-  pre.textContent = 'Fetching...';
-  
-  try {
-    const res = await fetch(url, { headers: { Authorization: 'Zoho-oauthtoken ' + token } });
-    if (!res.ok) {
-      pre.textContent = `HTTP ${res.status} – ${await res.text()}`;
-      return;
+  pre.textContent = 'Trying different endpoints...';
+
+  // List of possible single-message endpoints
+  const urls = [
+    `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}`,
+    `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}/view`,
+    `https://mail.zoho.in/api/accounts/${accountId}/messages?messageId=${messageId}`,
+    `https://mail.zoho.in/api/accounts/${accountId}/messages/view?messageId=${messageId}`,
+  ];
+
+  for (const url of urls) {
+    try {
+      const fullUrl = proxy + encodeURIComponent(url);
+      const res = await fetch(fullUrl, { headers: { Authorization: 'Zoho-oauthtoken ' + token } });
+      if (res.ok) {
+        const data = await res.json();
+        pre.innerHTML = `<strong>✅ Success with:</strong> ${url}<br><br>${JSON.stringify(data, null, 2)}`;
+        return;
+      } else {
+        pre.textContent += `\n❌ ${url} → HTTP ${res.status}`;
+      }
+    } catch (e) {
+      pre.textContent += `\n❌ ${url} → ${e.message}`;
     }
-    const data = await res.json();
-    pre.textContent = JSON.stringify(data, null, 2);
-  } catch (e) {
-    pre.textContent = `Network error: ${e.message}`;
   }
+  pre.textContent += '\n\nAll endpoints failed.';
 }
+
 
 
 
@@ -1147,25 +1160,36 @@ async function enrichFlags(messages) {
   const accountId = await getAccountId();
   if (!accountId) return;
   const proxy = "https://corsproxy.io/?";
-  // Only fetch flags for the first 20 messages (adjust as needed)
   const batch = messages.slice(0, 20);
+  
   for (let msg of batch) {
     const id = msg.messageId || msg.id;
     if (!id) continue;
-    const url = `https://mail.zoho.in/api/accounts/${accountId}/messages/${id}`;
-    try {
-      const res = await fetch(proxy + encodeURIComponent(url), {
-        headers: { 'Authorization': 'Zoho-oauthtoken ' + token }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.data && data.data.flag) {
-          msg.flag = data.data.flag;
+    
+    const urls = [
+      `https://mail.zoho.in/api/accounts/${accountId}/messages/${id}`,
+      `https://mail.zoho.in/api/accounts/${accountId}/messages/${id}/view`,
+      `https://mail.zoho.in/api/accounts/${accountId}/messages?messageId=${id}`,
+      `https://mail.zoho.in/api/accounts/${accountId}/messages/view?messageId=${id}`,
+    ];
+
+    for (const url of urls) {
+      try {
+        const fullUrl = proxy + encodeURIComponent(url);
+        const res = await fetch(fullUrl, { headers: { Authorization: 'Zoho-oauthtoken ' + token } });
+        if (res.ok) {
+          const data = await res.json();
+          const flag = data.data?.flag || data.data?.label || data.data?.tags?.[0] || '';
+          if (flag) {
+            msg.flag = flag;
+          }
+          break; // stop trying other URLs for this message
         }
-      }
-    } catch(e) {}
+      } catch(e) {}
+    }
   }
 }
+
 
 
 
