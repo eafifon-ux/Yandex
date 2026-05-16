@@ -1001,7 +1001,7 @@ function renderInbox(messages) {
     const snippet = msg.summary || msg.snippet || "";
     const storedOverride = readStatusOverrides.get(String(messageId));
     const isUnread = storedOverride !== undefined ? (storedOverride === "0") : (msg.status === "0");
-    const flag = msg.flag || '';  // ← ADD THIS LINE
+    const flag = msg.flagid || '';
 
     html += `
       <div class="mail${isUnread ? ' unread' : ''}"
@@ -1012,88 +1012,14 @@ function renderInbox(messages) {
         <div class="mail-sender">${escapeHtml(from)}</div>
         <div class="mail-meta">
           ${getGPCBadgeHTML(date)}
-          ${flag ? `<span class="label-pill ${flag}">${getLabelText(flag)}</span>` : ''}  <!-- ← ADD THIS LINE -->
+          ${flag ? `<span class="label-pill ${flag}">${getLabelText(flag)}</span>` : ''}
         </div>
         <div class="mail-preview">${escapeHtml(snippet)}</div>
       </div>`;
   });
   inboxDiv.innerHTML = html;
-
-  // 🔍 DEBUG: Show raw flag values for first 3 messages
-  showFlagDebug(messages);
 }
 
-
-function getLabelText(flag) {
-  const map = {
-    'follow-up': '🟠 Follow Up',
-    'important': '🟡 waiting',
-    'info': '🔵 Read Through'
-  };
-  return map[flag] || flag;
-}
-
-function showFlagDebug(messages) {
-  const debugDiv = document.getElementById('flag-debug') || (() => {
-    const d = document.createElement('div');
-    d.id = 'flag-debug';
-    d.style.cssText = 'background:#fff3cd;color:#856404;padding:10px;border-radius:6px;margin-bottom:12px;font-family:monospace;font-size:0.85em;white-space:pre-wrap;word-break:break-all;';
-    document.getElementById('inbox').prepend(d);
-    return d;
-  })();
-
-  const sample = messages[0];
-  const id = sample ? (sample.messageId || sample.id) : 'none';
-  // Show raw JSON (first 5000 chars to avoid overload)
-  const raw = JSON.stringify(sample, null, 2).substring(0, 5000);
-  debugDiv.innerHTML = `
-    <strong>🔍 First message ID:</strong> ${id}<br>
-    <details>
-      <summary>📦 Full JSON (first 5000 chars)</summary>
-      <pre style="background:#f5f5f5;padding:8px;font-size:0.85em;max-height:300px;overflow:auto;white-space:pre-wrap;">${escapeHtml(raw)}</pre>
-    </details>
-    <hr style="margin:8px 0;border:none;border-top:1px solid #ccc;">
-    <button onclick="debugMessage('${id}', '${sample.folderId || ''}')">📡 Try direct fetch with folderId</button>
-    <pre id="raw-response" style="background:#f5f5f5;padding:8px;font-size:0.85em;max-height:300px;overflow:auto;display:none;margin-top:8px;white-space:pre-wrap;"></pre>
-  `;
-}
-
-
-async function debugMessage(messageId, folderId) {
-  if (!messageId) return;
-  const token = getToken();
-  const accountId = await getAccountId();
-  if (!token || !accountId) { alert('Not logged in'); return; }
-  const proxy = "https://corsproxy.io/?";
-  const pre = document.getElementById('raw-response');
-  pre.style.display = 'block';
-  pre.textContent = 'Trying single message with folderId...';
-
-  // Patterns with folderId, since we have it now
-  const urls = [
-    `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}`,
-    `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}/view`,
-    `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}?folderId=${folderId}`,
-    `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}/view?folderId=${folderId}`,
-  ];
-
-  for (const url of urls) {
-    try {
-      const fullUrl = proxy + encodeURIComponent(url);
-      const res = await fetch(fullUrl, { headers: { Authorization: 'Zoho-oauthtoken ' + token } });
-      if (res.ok) {
-        const data = await res.json();
-        pre.innerHTML = `<strong>✅ Success with:</strong> ${url}<br><br>${JSON.stringify(data, null, 2)}`;
-        return;
-      } else {
-        pre.textContent += `\n❌ ${url} → HTTP ${res.status}`;
-      }
-    } catch (e) {
-      pre.textContent += `\n❌ ${url} → ${e.message}`;
-    }
-  }
-  pre.textContent += '\n\nAll endpoints failed.';
-}
 
 
 function escapeHtml(text) {
@@ -1153,8 +1079,8 @@ async function fetchZohoInbox() {
     }
     const filtered = applyFilters(data.data);
     
-    // 🔍 Enrich flags for first 20 filtered messages
-    await enrichFlags(filtered);
+    // ✅ No enrichFlags needed – flagid is already in the list response
+    // await enrichFlags(filtered);  <-- removed
     
     renderInbox(filtered);
     if (debugEl) debugEl.textContent = `✅ ${data.data.length} messages, ${filtered.length} after filter`;
@@ -1164,45 +1090,6 @@ async function fetchZohoInbox() {
     if (debugEl) { debugEl.textContent = msg; }
     inboxDiv.innerHTML = `<p>Network error – see red box</p>`;
     fallbackCopy(msg);
-  }
-}
-
-
-
-
-async function enrichFlags(messages) {
-  const token = getToken();
-  if (!token || !messages.length) return;
-  const accountId = await getAccountId();
-  if (!accountId) return;
-  const proxy = "https://corsproxy.io/?";
-  const batch = messages.slice(0, 20);
-  
-  for (let msg of batch) {
-    const id = msg.messageId || msg.id;
-    if (!id) continue;
-    
-    const urls = [
-      `https://mail.zoho.in/api/accounts/${accountId}/messages/${id}`,
-      `https://mail.zoho.in/api/accounts/${accountId}/messages/${id}/view`,
-      `https://mail.zoho.in/api/accounts/${accountId}/messages?messageId=${id}`,
-      `https://mail.zoho.in/api/accounts/${accountId}/messages/view?messageId=${id}`,
-    ];
-
-    for (const url of urls) {
-      try {
-        const fullUrl = proxy + encodeURIComponent(url);
-        const res = await fetch(fullUrl, { headers: { Authorization: 'Zoho-oauthtoken ' + token } });
-        if (res.ok) {
-          const data = await res.json();
-          const flag = data.data?.flag || data.data?.label || data.data?.tags?.[0] || '';
-          if (flag) {
-            msg.flag = flag;
-          }
-          break; // stop trying other URLs for this message
-        }
-      } catch(e) {}
-    }
   }
 }
 
