@@ -1045,14 +1045,14 @@ async function fetchZohoInbox() {
       return;
     }
     const data = await res.json();
-    if (!data.data || data.data.length === 0) {
+        if (!data.data || data.data.length === 0) {
       inboxDiv.innerHTML = "<p>No messages in this folder.</p>";
-      if (debugEl) debugEl.textContent = `✅ HTTP ${res.status} – 0 messages in folder "${folderId || '(all)'}"`;
+      if (debugEl) debugEl.textContent = '✅ 0 messages in folder';   // <-- shortened
       return;
     }
     const filtered = applyFilters(data.data);
     renderInbox(filtered);
-    if (debugEl) debugEl.textContent = `✅ HTTP ${res.status} – ${data.data.length} messages, ${filtered.length} after filter`;
+    if (debugEl) debugEl.textContent = `✅ ${data.data.length} messages, ${filtered.length} after filter`;  // <-- shortened
   } catch(e) {
     const debugEl = document.getElementById('folderDebug');
     const msg = `❌ Network error: ${e.message}`;
@@ -1227,30 +1227,6 @@ async function loadProfile() {
 }
 
 
-function showDebug(msg) {
-  const el = document.getElementById('folderDebug');
-  if (!el) return;
-  // If msg contains HTML (like a button), use innerHTML, else text
-  if (msg.includes('<button')) {
-    el.innerHTML = msg;
-  } else {
-    el.textContent = msg;
-  }
-  el.style.display = 'block';
-  // Add a copy button
-  const copyBtn = document.createElement('button');
-  copyBtn.textContent = '📋 Copy';
-  copyBtn.className = 'copy-btn';
-  copyBtn.onclick = function() {
-    const text = el.innerText || el.textContent;
-    navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
-    copyBtn.textContent = '✅ Copied';
-    setTimeout(() => copyBtn.textContent = '📋 Copy', 2000);
-  };
-  el.appendChild(copyBtn);
-}
-
-
 // ====== NEW: Folder fetching ======
 async function fetchFolders() {
   const token = getToken();
@@ -1276,7 +1252,7 @@ async function fetchFolders() {
     }
     const data = await res.json();
     const folders = data.data || [];
-    showDebug(`✅ fetchFolders OK – ${folders.length} folders returned:\n${JSON.stringify(folders, null, 2).substring(0, 500)}`);
+showDebug(`✅ ${folders.length} folders returned`);
     return folders;
   } catch (e) {
     showDebug(`❌ fetchFolders network error: ${e.message}`);
