@@ -454,16 +454,18 @@ body.privacy-mode .mail-from {
       <!-- Add this DELETE button inside the modal, beside Reply & Forward -->
 <button id="deleteBtn" class="secondary" style="font-size:0.85em; padding:4px 12px; color:#b00; border-color:#faa; background:#ffe0e0;">🗑 Delete</button>
 
-<button id="readToggleBtn" class="secondary" style="font-size:1.2em; padding:4px 8px; display:none; margin-left:auto; line-height:1; display:inline-flex; align-items:center; justify-content:center; transform: translateY(16px);">🔵</button>
+
 
 
     <div id="modalContent">
-      <div class="modal-header">
-        <h3 class="modal-subject" id="modalSubject">Subject</h3>
-        <div class="modal-from" id="modalFrom">From:</div>
-        <div class="modal-to" id="modalTo">To:</div>
-        <div class="modal-date-zulu" id="modalDateZulu">Loading…</div>
-      </div>
+      <div class="modal-header" style="position:relative;">
+  <button id="readToggleBtn" class="secondary" style="float:right; font-size:1.2em; padding:4px 8px; display:none; line-height:1;">🔵</button>
+  <h3 class="modal-subject" id="modalSubject">Subject</h3>
+  <div class="modal-from" id="modalFrom">From:</div>
+  <div class="modal-to" id="modalTo">To:</div>
+  <div class="modal-date-zulu" id="modalDateZulu">Loading…</div>
+</div>
+
       <div class="modal-body" id="modalBody">
         <div class="loading-text">Loading message…</div>
       </div>
