@@ -165,7 +165,7 @@
   .modal-box {
     background: white;
     border-radius: 12px;
-    max-width: 800px;
+    max-width: 95vw;
     width: 100%;
     padding: 20px 25px 25px;
     box-shadow: 0 15px 40px rgba(0,0,0,0.2);
@@ -211,7 +211,23 @@
     white-space: pre-wrap;
     font-family: inherit;
     overflow-x: hidden;
+    max-width: 100%;
   }
+
+.modal-body img,
+.modal-body table,
+.modal-body * {
+  max-width: 100% !important;  /* keep large elements inside */
+  height: auto;
+  box-sizing: border-box;
+}
+
+.modal-body div[style*="line-height"] {
+  max-width: 100%;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
   .loading-text { text-align: center; padding: 30px; color: #888; }
   
   .date-greg {
@@ -1270,7 +1286,9 @@ async function fetchContentOnly(messageId, folderId) {
         let htmlContent = contentMsg.htmlContent || contentMsg.content || contentMsg.body || '';
         if (htmlContent) {
           htmlContent = htmlContent.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '').replace(/on\w+=["'][^"']*["']/gi, '');
-          document.getElementById('modalBody').innerHTML = `<div style="line-height:1.65;font-size:15.2px;padding:8px 4px;">${htmlContent}</div>`;
+          document.getElementById('modalBody').innerHTML = 
+  `<div style="max-width:100%; overflow-x:hidden; line-height:1.65; font-size:15.2px; padding:8px 4px;">${htmlContent}</div>`;
+
         } else {
           const plainText = contentMsg.content || contentMsg.textContent || '(No content)';
           document.getElementById('modalBody').innerHTML = `<pre style="white-space:pre-wrap;font-family:inherit;margin:0;font-size:0.95em;line-height:1.6;background:#f8f9fa;padding:15px;border-radius:8px;">${escapeHtml(plainText)}</pre>`;
