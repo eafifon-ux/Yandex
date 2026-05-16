@@ -1041,13 +1041,40 @@ function showFlagDebug(messages) {
     document.getElementById('inbox').prepend(d);
     return d;
   })();
-  const samples = messages.slice(0, 3).map(m => {
-    const flag = m.flag || '(empty)';
-    const id = m.messageId || m.id || '?';
-    return `ID: ${id}  →  flag: "${flag}"`;
-  }).join('\n');
-  debugDiv.textContent = `🔍 DEBUG: First 3 messages flag values:\n${samples}`;
+
+  const sample = messages[0];
+  const id = sample ? (sample.messageId || sample.id) : 'none';
+  debugDiv.innerHTML = `
+    <strong>🔍 First message ID:</strong> ${id}<br>
+    <button onclick="debugMessage('${id}')">📡 Fetch full API response</button>
+    <pre id="raw-response" style="background:#f5f5f5;padding:8px;font-size:0.85em;max-height:300px;overflow:auto;display:none;margin-top:8px;"></pre>
+  `;
 }
+
+async function debugMessage(messageId) {
+  if (!messageId) return;
+  const token = getToken();
+  const accountId = await getAccountId();
+  if (!token || !accountId) { alert('Not logged in'); return; }
+  const proxy = "https://corsproxy.io/?";
+  const url = proxy + encodeURIComponent(`https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}`);
+  const pre = document.getElementById('raw-response');
+  pre.style.display = 'block';
+  pre.textContent = 'Fetching...';
+  
+  try {
+    const res = await fetch(url, { headers: { Authorization: 'Zoho-oauthtoken ' + token } });
+    if (!res.ok) {
+      pre.textContent = `HTTP ${res.status} – ${await res.text()}`;
+      return;
+    }
+    const data = await res.json();
+    pre.textContent = JSON.stringify(data, null, 2);
+  } catch (e) {
+    pre.textContent = `Network error: ${e.message}`;
+  }
+}
+
 
 
 
