@@ -1054,6 +1054,7 @@ function getLabelText(flag) {
 
 
 
+
 function formatGregorian(d){ const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${dd}`; }
 function escapeHtml(t){ const d=document.createElement('div'); d.textContent=t; return d.innerHTML; }
 
@@ -1071,12 +1072,12 @@ async function fetchZohoInbox() {
     const proxy = "https://corsproxy.io/?";
     const folderSelect = document.getElementById('folderSelect');
     const folderId = folderSelect ? folderSelect.value : '';
-    // ✅ CORRECT ENDPOINT: /messages/list
+    // ✅ FIX: Use /messages endpoint instead of /messages/view
     let apiUrl;
     if (folderId) {
-      apiUrl = `https://mail.zoho.in/api/accounts/${accountId}/messages/list?limit=50&folderId=${folderId}`;
+      apiUrl = `https://mail.zoho.in/api/accounts/${accountId}/messages?limit=50&folderId=${folderId}`;
     } else {
-      apiUrl = `https://mail.zoho.in/api/accounts/${accountId}/messages/list?limit=50`;
+      apiUrl = `https://mail.zoho.in/api/accounts/${accountId}/messages?limit=50`;
     }
     const url = proxy + encodeURIComponent(apiUrl);
     const debugEl = document.getElementById('folderDebug');
@@ -1110,7 +1111,6 @@ async function fetchZohoInbox() {
     fallbackCopy(msg);
   }
 }
-
 
 
 
