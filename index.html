@@ -240,6 +240,7 @@ body.privacy-mode .mail-from {
   caret-color: #000;
 }
 
+
 .mail.unread {
   border-left: 5px solid #9b27b0;
   background: #f9f0ff;
@@ -248,6 +249,21 @@ body.privacy-mode .mail-from {
 .mail.unread .mail-subject {
   font-weight: 800; /* extra bold subject */
 }
+
+/* Label pills */
+.label-pill {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.85em;
+  font-weight: bold;
+  margin: 2px 4px;
+  white-space: nowrap;
+}
+.label-pill.follow-up { background: #fff3e0; color: #e65100; }
+.label-pill.important { background: #fff9c4; color: #f57f17; }
+.label-pill.info      { background: #e3f2fd; color: #1565c0; }
+
 
   
 </style>
@@ -984,9 +1000,8 @@ function renderInbox(messages) {
     const date = parseDate(msg);
     const snippet = msg.summary || msg.snippet || "";
     const storedOverride = readStatusOverrides.get(String(messageId));
-const isUnread = storedOverride !== undefined ? (storedOverride === "0") : (msg.status === "0");
-
-
+    const isUnread = storedOverride !== undefined ? (storedOverride === "0") : (msg.status === "0");
+    const flag = msg.flag || '';  // ← ADD THIS LINE
 
     html += `
       <div class="mail${isUnread ? ' unread' : ''}"
@@ -997,11 +1012,21 @@ const isUnread = storedOverride !== undefined ? (storedOverride === "0") : (msg.
         <div class="mail-sender">${escapeHtml(from)}</div>
         <div class="mail-meta">
           ${getGPCBadgeHTML(date)}
+          ${flag ? `<span class="label-pill ${flag}">${getLabelText(flag)}</span>` : ''}  <!-- ← ADD THIS LINE -->
         </div>
         <div class="mail-preview">${escapeHtml(snippet)}</div>
       </div>`;
   });
   inboxDiv.innerHTML = html;
+}
+
+function getLabelText(flag) {
+  const map = {
+    'follow-up': '🟠 Follow Up',
+    'important': '🟡 waiting',
+    'info': '🔵 Read Through'
+  };
+  return map[flag] || flag;
 }
 
 
