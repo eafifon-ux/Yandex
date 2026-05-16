@@ -737,7 +737,8 @@ const REDIRECT_URI = window.location.href.split('?')[0].split('#')[0];
 const ACCOUNTS_URL="https://accounts.zoho.in";
 
 function zohoLogin() {
-  const scopes = "ZohoMail.messages.ALL,ZohoMail.accounts.READ,ZohoMail.messages.READ,ZohoMail.folders.READ";
+  const scopes = "ZohoMail.messages.ALL,ZohoMail.accounts.READ,ZohoMail.messages.READ,ZohoMail.folders.ALL";
+
   const baseAuthUrl = `${ACCOUNTS_URL}/oauth/v2/auth?scope=${encodeURIComponent(scopes)}&client_id=${CLIENT_ID}&response_type=token&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
   const state = encodeFilterState();
   const authUrl = `${baseAuthUrl}&state=${encodeURIComponent(state)}`;
