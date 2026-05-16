@@ -1001,7 +1001,7 @@ function renderInbox(messages) {
     const snippet = msg.summary || msg.snippet || "";
     const storedOverride = readStatusOverrides.get(String(messageId));
     const isUnread = storedOverride !== undefined ? (storedOverride === "0") : (msg.status === "0");
-    const flag = msg.flag || '';  // ← ADD THIS LINE
+    const flag = msg.flag || '';
 
     html += `
       <div class="mail${isUnread ? ' unread' : ''}"
@@ -1012,13 +1012,36 @@ function renderInbox(messages) {
         <div class="mail-sender">${escapeHtml(from)}</div>
         <div class="mail-meta">
           ${getGPCBadgeHTML(date)}
-          ${flag ? `<span class="label-pill ${flag}">${getLabelText(flag)}</span>` : ''}  <!-- ← ADD THIS LINE -->
+          ${flag ? `<span class="label-pill ${flag}">${getLabelText(flag)}</span>` : ''}
         </div>
         <div class="mail-preview">${escapeHtml(snippet)}</div>
       </div>`;
   });
   inboxDiv.innerHTML = html;
+
+  // 🔍 DEBUG: Show raw flag values for first 3 messages
+  showFlagDebug(messages);
 }
+
+// ====== NEW: Debug function – paste after renderInbox ======
+function showFlagDebug(messages) {
+  const debugDiv = document.getElementById('flag-debug') || (() => {
+    const d = document.createElement('div');
+    d.id = 'flag-debug';
+    d.style.cssText = 'background:#fff3cd;color:#856404;padding:10px;border-radius:6px;margin-bottom:12px;font-family:monospace;font-size:0.85em;white-space:pre-wrap;word-break:break-all;';
+    document.getElementById('inbox').prepend(d);
+    return d;
+  })();
+  const samples = messages.slice(0, 3).map(m => {
+    const flag = m.flag || '(empty)';
+    const id = m.messageId || m.id || '?';
+    return `ID: ${id}  →  flag: "${flag}"`;
+  }).join('\n');
+  debugDiv.textContent = `🔍 DEBUG: First 3 messages flag values:\n${samples}`;
+}
+
+
+
 
 function getLabelText(flag) {
   const map = {
@@ -1028,6 +1051,24 @@ function getLabelText(flag) {
   };
   return map[flag] || flag;
 }
+
+// ==== DEBUG: Show raw flag values for first 3 messages ====
+function showFlagDebug(messages) {
+  const debugDiv = document.getElementById('flag-debug') || (() => {
+    const d = document.createElement('div');
+    d.id = 'flag-debug';
+    d.style.cssText = 'background:#fff3cd;color:#856404;padding:10px;border-radius:6px;margin-bottom:12px;font-family:monospace;font-size:0.85em;white-space:pre-wrap;word-break:break-all;';
+    document.getElementById('inbox').prepend(d);
+    return d;
+  })();
+  const samples = messages.slice(0, 3).map(m => {
+    const flag = m.flag || '(empty)';
+    const id = m.messageId || m.id || '?';
+    return `ID: ${id}  →  flag: "${flag}"`;
+  }).join('\n');
+  debugDiv.textContent = `🔍 DEBUG: First 3 messages flag values:\n${samples}`;
+}
+
 
 
 
