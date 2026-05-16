@@ -1024,12 +1024,12 @@ async function fetchZohoInbox() {
     const folderId = folderSelect ? folderSelect.value : '';
     let apiUrl;
     if (folderId) {
-      apiUrl = `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages?limit=50`;
+      // ✅ Use the same messages/view endpoint with folderId parameter
+      apiUrl = `https://mail.zoho.in/api/accounts/${accountId}/messages/view?limit=50&folderId=${folderId}`;
     } else {
       apiUrl = `https://mail.zoho.in/api/accounts/${accountId}/messages/view?limit=50`;
     }
     const url = proxy + encodeURIComponent(apiUrl);
-    // Show debug
     const debugEl = document.getElementById('folderDebug');
     if (debugEl) {
       debugEl.innerHTML = `📡 Fetching: ${url.replace(token, 'TOKEN')}`;
@@ -1041,7 +1041,6 @@ async function fetchZohoInbox() {
       const msg = `❌ HTTP ${res.status} for folder "${folderId || '(all)'}"\nURL: ${url.replace(token, 'TOKEN')}\nResponse: ${errorText.substring(0, 500)}`;
       if (debugEl) { debugEl.textContent = msg; }
       inboxDiv.innerHTML = `<p>Error ${res.status} – see red box</p>`;
-      // Auto-copy error to clipboard
       fallbackCopy(msg);
       return;
     }
