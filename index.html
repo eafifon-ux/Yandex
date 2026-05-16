@@ -1001,7 +1001,10 @@ function renderInbox(messages) {
     const snippet = msg.summary || msg.snippet || "";
     const storedOverride = readStatusOverrides.get(String(messageId));
     const isUnread = storedOverride !== undefined ? (storedOverride === "0") : (msg.status === "0");
-    const flag = msg.flagid || '';
+    
+    // ✅ FIX: ignore "flag_not_set" and empty
+    let flag = msg.flagid || '';
+    if (flag === 'flag_not_set' || flag === 'none' || flag === '') flag = '';
 
     html += `
       <div class="mail${isUnread ? ' unread' : ''}"
@@ -1032,11 +1035,13 @@ function escapeHtml(text) {
 function getLabelText(flag) {
   const map = {
     'follow-up': '🟠 Follow Up',
+    'followup': '🟠 Follow Up',   // <-- added alias
     'important': '🟡 waiting',
     'info': '🔵 Read Through'
   };
-  return map[flag] || flag;
+  return map[flag] || '';   // return empty if not recognized
 }
+
 
 
 
