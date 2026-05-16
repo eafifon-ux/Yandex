@@ -1071,12 +1071,12 @@ async function fetchZohoInbox() {
     const proxy = "https://corsproxy.io/?";
     const folderSelect = document.getElementById('folderSelect');
     const folderId = folderSelect ? folderSelect.value : '';
-    // ✅ FIX: Use /messages endpoint instead of /messages/view
+    // ✅ CORRECT ENDPOINT: /messages/list
     let apiUrl;
     if (folderId) {
-      apiUrl = `https://mail.zoho.in/api/accounts/${accountId}/messages?limit=50&folderId=${folderId}`;
+      apiUrl = `https://mail.zoho.in/api/accounts/${accountId}/messages/list?limit=50&folderId=${folderId}`;
     } else {
-      apiUrl = `https://mail.zoho.in/api/accounts/${accountId}/messages?limit=50`;
+      apiUrl = `https://mail.zoho.in/api/accounts/${accountId}/messages/list?limit=50`;
     }
     const url = proxy + encodeURIComponent(apiUrl);
     const debugEl = document.getElementById('folderDebug');
@@ -1110,6 +1110,7 @@ async function fetchZohoInbox() {
     fallbackCopy(msg);
   }
 }
+
 
 
 
