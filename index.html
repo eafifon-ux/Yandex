@@ -1052,49 +1052,31 @@ function getLabelText(flag) {
   return map[flag] || flag;
 }
 
-// ==== DEBUG: Show raw flag values for first 3 messages ====
-function showFlagDebug(messages) {
-  const debugDiv = document.getElementById('flag-debug') || (() => {
-    const d = document.createElement('div');
-    d.id = 'flag-debug';
-    d.style.cssText = 'background:#fff3cd;color:#856404;padding:10px;border-radius:6px;margin-bottom:12px;font-family:monospace;font-size:0.85em;white-space:pre-wrap;word-break:break-all;';
-    document.getElementById('inbox').prepend(d);
-    return d;
-  })();
-  const samples = messages.slice(0, 3).map(m => {
-    const flag = m.flag || '(empty)';
-    const id = m.messageId || m.id || '?';
-    return `ID: ${id}  →  flag: "${flag}"`;
-  }).join('\n');
-  debugDiv.textContent = `🔍 DEBUG: First 3 messages flag values:\n${samples}`;
-}
-
-
 
 
 function formatGregorian(d){ const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${dd}`; }
 function escapeHtml(t){ const d=document.createElement('div'); d.textContent=t; return d.innerHTML; }
 
 async function fetchZohoInbox() {
-  const token=getToken();
-  if(!token){
-    document.getElementById("inbox").innerHTML=`<div class="error-message">⚠️ No token. <button onclick="window.location.reload()">Login</button></div>`;
+  const token = getToken();
+  if (!token) {
+    document.getElementById("inbox").innerHTML = `<div class="error-message">⚠️ No token. <button onclick="window.location.reload()">Login</button></div>`;
     return;
   }
-  const inboxDiv=document.getElementById("inbox");
-  inboxDiv.innerHTML='<div class="loading">Loading inbox…</div>';
-  const accountId=await getAccountId();
-  if(!accountId){ inboxDiv.innerHTML='<div class="error-message">Account error</div>'; return; }
-  try{
-    const proxy="https://corsproxy.io/?";
+  const inboxDiv = document.getElementById("inbox");
+  inboxDiv.innerHTML = '<div class="loading">Loading inbox…</div>';
+  const accountId = await getAccountId();
+  if (!accountId) { inboxDiv.innerHTML = '<div class="error-message">Account error</div>'; return; }
+  try {
+    const proxy = "https://corsproxy.io/?";
     const folderSelect = document.getElementById('folderSelect');
     const folderId = folderSelect ? folderSelect.value : '';
+    // ✅ FIX: Use /messages endpoint instead of /messages/view
     let apiUrl;
     if (folderId) {
-      // ✅ Use the same messages/view endpoint with folderId parameter
-      apiUrl = `https://mail.zoho.in/api/accounts/${accountId}/messages/view?limit=50&folderId=${folderId}`;
+      apiUrl = `https://mail.zoho.in/api/accounts/${accountId}/messages?limit=50&folderId=${folderId}`;
     } else {
-      apiUrl = `https://mail.zoho.in/api/accounts/${accountId}/messages/view?limit=50`;
+      apiUrl = `https://mail.zoho.in/api/accounts/${accountId}/messages?limit=50`;
     }
     const url = proxy + encodeURIComponent(apiUrl);
     const debugEl = document.getElementById('folderDebug');
@@ -1112,15 +1094,15 @@ async function fetchZohoInbox() {
       return;
     }
     const data = await res.json();
-        if (!data.data || data.data.length === 0) {
+    if (!data.data || data.data.length === 0) {
       inboxDiv.innerHTML = "<p>No messages in this folder.</p>";
-      if (debugEl) debugEl.textContent = '✅ 0 messages in folder';   // <-- shortened
+      if (debugEl) debugEl.textContent = '✅ 0 messages in folder';
       return;
     }
     const filtered = applyFilters(data.data);
     renderInbox(filtered);
-    if (debugEl) debugEl.textContent = `✅ ${data.data.length} messages, ${filtered.length} after filter`;  // <-- shortened
-  } catch(e) {
+    if (debugEl) debugEl.textContent = `✅ ${data.data.length} messages, ${filtered.length} after filter`;
+  } catch (e) {
     const debugEl = document.getElementById('folderDebug');
     const msg = `❌ Network error: ${e.message}`;
     if (debugEl) { debugEl.textContent = msg; }
@@ -1128,6 +1110,7 @@ async function fetchZohoInbox() {
     fallbackCopy(msg);
   }
 }
+
 
 
 /* ===============================
