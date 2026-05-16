@@ -1094,7 +1094,7 @@ async function fetchZohoInbox() {
       // ✅ Use the same messages/view endpoint with folderId parameter
       apiUrl = `https://mail.zoho.in/api/accounts/${accountId}/messages/view?limit=50&folderId=${folderId}`;
     } else {
-      apiUrl = `https://mail.zoho.in/api/accounts/${accountId}/messages?limit=50`;
+      apiUrl = `https://mail.zoho.in/api/accounts/${accountId}/messages/view?limit=50`;
     }
     const url = proxy + encodeURIComponent(apiUrl);
     const debugEl = document.getElementById('folderDebug');
