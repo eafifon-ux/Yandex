@@ -1055,22 +1055,21 @@ function formatGregorian(d){ const y=d.getFullYear(),m=String(d.getMonth()+1).pa
 function escapeHtml(t){ const d=document.createElement('div'); d.textContent=t; return d.innerHTML; }
 
 async function fetchZohoInbox() {
-  const token=getToken();
-  if(!token){
-    document.getElementById("inbox").innerHTML=`<div class="error-message">⚠️ No token. <button onclick="window.location.reload()">Login</button></div>`;
+  const token = getToken();
+  if (!token) {
+    document.getElementById("inbox").innerHTML = `<div class="error-message">⚠️ No token. <button onclick="window.location.reload()">Login</button></div>`;
     return;
   }
-  const inboxDiv=document.getElementById("inbox");
-  inboxDiv.innerHTML='<div class="loading">Loading inbox…</div>';
-  const accountId=await getAccountId();
-  if(!accountId){ inboxDiv.innerHTML='<div class="error-message">Account error</div>'; return; }
-  try{
-    const proxy="https://corsproxy.io/?";
+  const inboxDiv = document.getElementById("inbox");
+  inboxDiv.innerHTML = '<div class="loading">Loading inbox…</div>';
+  const accountId = await getAccountId();
+  if (!accountId) { inboxDiv.innerHTML = '<div class="error-message">Account error</div>'; return; }
+  try {
+    const proxy = "https://corsproxy.io/?";
     const folderSelect = document.getElementById('folderSelect');
     const folderId = folderSelect ? folderSelect.value : '';
     let apiUrl;
     if (folderId) {
-      // ✅ Use the same messages/view endpoint with folderId parameter
       apiUrl = `https://mail.zoho.in/api/accounts/${accountId}/messages/view?limit=50&folderId=${folderId}`;
     } else {
       apiUrl = `https://mail.zoho.in/api/accounts/${accountId}/messages/view?limit=50`;
@@ -1091,15 +1090,19 @@ async function fetchZohoInbox() {
       return;
     }
     const data = await res.json();
-        if (!data.data || data.data.length === 0) {
+    if (!data.data || data.data.length === 0) {
       inboxDiv.innerHTML = "<p>No messages in this folder.</p>";
-      if (debugEl) debugEl.textContent = '✅ 0 messages in folder';   // <-- shortened
+      if (debugEl) debugEl.textContent = '✅ 0 messages in folder';
       return;
     }
     const filtered = applyFilters(data.data);
+    
+    // 🔍 Enrich flags for first 20 filtered messages
+    await enrichFlags(filtered);
+    
     renderInbox(filtered);
-    if (debugEl) debugEl.textContent = `✅ ${data.data.length} messages, ${filtered.length} after filter`;  // <-- shortened
-  } catch(e) {
+    if (debugEl) debugEl.textContent = `✅ ${data.data.length} messages, ${filtered.length} after filter`;
+  } catch (e) {
     const debugEl = document.getElementById('folderDebug');
     const msg = `❌ Network error: ${e.message}`;
     if (debugEl) { debugEl.textContent = msg; }
@@ -1107,6 +1110,36 @@ async function fetchZohoInbox() {
     fallbackCopy(msg);
   }
 }
+
+
+
+
+async function enrichFlags(messages) {
+  const token = getToken();
+  if (!token || !messages.length) return;
+  const accountId = await getAccountId();
+  if (!accountId) return;
+  const proxy = "https://corsproxy.io/?";
+  // Only fetch flags for the first 20 messages (adjust as needed)
+  const batch = messages.slice(0, 20);
+  for (let msg of batch) {
+    const id = msg.messageId || msg.id;
+    if (!id) continue;
+    const url = `https://mail.zoho.in/api/accounts/${accountId}/messages/${id}`;
+    try {
+      const res = await fetch(proxy + encodeURIComponent(url), {
+        headers: { 'Authorization': 'Zoho-oauthtoken ' + token }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.data && data.data.flag) {
+          msg.flag = data.data.flag;
+        }
+      }
+    } catch(e) {}
+  }
+}
+
 
 
 /* ===============================
