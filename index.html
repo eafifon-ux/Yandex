@@ -1029,6 +1029,14 @@ function escapeHtml(text) {
 }
 
 
+function getLabelText(flag) {
+  const map = {
+    'follow-up': '🟠 Follow Up',
+    'important': '🟡 waiting',
+    'info': '🔵 Read Through'
+  };
+  return map[flag] || flag;
+}
 
 
 
