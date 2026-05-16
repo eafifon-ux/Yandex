@@ -1029,13 +1029,38 @@ async function fetchZohoInbox() {
       apiUrl = `https://mail.zoho.in/api/accounts/${accountId}/messages/view?limit=50`;
     }
     const url = proxy + encodeURIComponent(apiUrl);
-    const res=await fetch(url,{headers:{Authorization:"Zoho-oauthtoken "+token}});
-    if(!res.ok){ inboxDiv.innerHTML=`<p>Error ${res.status}</p>`; return; }
-    const data=await res.json();
-    if(!data.data||data.data.length===0){ inboxDiv.innerHTML="<p>No messages.</p>"; return; }
-    const filtered=applyFilters(data.data);
+    // Show debug
+    const debugEl = document.getElementById('folderDebug');
+    if (debugEl) {
+      debugEl.innerHTML = `📡 Fetching: ${url.replace(token, 'TOKEN')}`;
+      debugEl.style.display = 'block';
+    }
+    const res = await fetch(url, { headers: { Authorization: "Zoho-oauthtoken " + token } });
+    if (!res.ok) {
+      const errorText = await res.text();
+      const msg = `❌ HTTP ${res.status} for folder "${folderId || '(all)'}"\nURL: ${url.replace(token, 'TOKEN')}\nResponse: ${errorText.substring(0, 500)}`;
+      if (debugEl) { debugEl.textContent = msg; }
+      inboxDiv.innerHTML = `<p>Error ${res.status} – see red box</p>`;
+      // Auto-copy error to clipboard
+      fallbackCopy(msg);
+      return;
+    }
+    const data = await res.json();
+    if (!data.data || data.data.length === 0) {
+      inboxDiv.innerHTML = "<p>No messages in this folder.</p>";
+      if (debugEl) debugEl.textContent = `✅ HTTP ${res.status} – 0 messages in folder "${folderId || '(all)'}"`;
+      return;
+    }
+    const filtered = applyFilters(data.data);
     renderInbox(filtered);
-  }catch(e){ inboxDiv.innerHTML=`<p>Network error: ${e.message}</p>`; }
+    if (debugEl) debugEl.textContent = `✅ HTTP ${res.status} – ${data.data.length} messages, ${filtered.length} after filter`;
+  } catch(e) {
+    const debugEl = document.getElementById('folderDebug');
+    const msg = `❌ Network error: ${e.message}`;
+    if (debugEl) { debugEl.textContent = msg; }
+    inboxDiv.innerHTML = `<p>Network error – see red box</p>`;
+    fallbackCopy(msg);
+  }
 }
 
 
