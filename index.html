@@ -1127,7 +1127,6 @@ async function deleteCurrentMessage() {
   if (!accountId) return;
 
   const proxy = "https://corsproxy.io/?";
-  // ✅ FIXED: correct endpoint per Zoho Mail API v2
   const url = `https://mail.zoho.in/api/accounts/${accountId}/messages/actions/trash`;
 
   try {
@@ -1141,20 +1140,38 @@ async function deleteCurrentMessage() {
     });
 
     if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`HTTP ${res.status}: ${err.substring(0, 300)}`);
+      const responseBody = await res.text();
+      const debugInfo = `HTTP ${res.status}\nURL: ${url}\nResponse: ${responseBody.substring(0, 1000)}`;
+      throw new Error(debugInfo);
     }
 
     alert('✅ Message moved to Trash');
     closeEmailModal();
     fetchZohoInbox();
   } catch (e) {
-    alert('❌ Delete failed:\n\n' + e.message);
-    if (navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(e.message).catch(() => {});
+    const errorMessage = e.message;
+    alert('❌ Delete failed:\n\n' + errorMessage);
+    
+    // Copy full debug to clipboard
+    const debugText = `Delete Failed Debug Info:\n${errorMessage}\n\nAccount ID: ${accountId}\nMessage ID: ${messageId}`;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(debugText).catch(() => fallbackCopy(debugText));
+    } else {
+      fallbackCopy(debugText);
     }
   }
 }
+
+// Helper fallback for copying text
+function fallbackCopy(text) {
+  const textArea = document.createElement('textarea');
+  textArea.value = text;
+  document.body.appendChild(textArea);
+  textArea.select();
+  document.execCommand('copy');
+  document.body.removeChild(textArea);
+}
+
 
 
 
