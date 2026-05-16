@@ -451,6 +451,9 @@ body.privacy-mode .mail-from {
     <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
       <button id="replyBtn" class="secondary" style="font-size:0.85em; padding:4px 12px;">↩ Reply</button>
       <button id="forwardBtn" class="secondary" style="font-size:0.85em; padding:4px 12px;">↪ Forward</button>
+      <!-- Add this DELETE button inside the modal, beside Reply & Forward -->
+<button id="deleteBtn" class="secondary" style="font-size:0.85em; padding:4px 12px; color:#b00; border-color:#faa; background:#ffe0e0;">🗑 Delete</button>
+
 <button id="readToggleBtn" class="secondary" style="font-size:1.2em; padding:4px 8px; display:none; margin-left:auto; line-height:1; display:inline-flex; align-items:center; justify-content:center; transform: translateY(16px);">🔵</button>
 
 
@@ -1106,6 +1109,50 @@ async function fetchZohoInbox() {
   }
 }
 
+// Add this function anywhere inside your <script> block
+
+async function deleteCurrentMessage() {
+  if (!currentModalMessage) return;
+  const msg = currentModalMessage;
+  const messageId = msg.messageId || msg.id;
+  if (!messageId) { alert('Cannot determine message ID.'); return; }
+
+  if (!confirm('🗑 Move this message to Trash?')) return;
+
+  const token = getToken();
+  if (!token) return;
+  const accountId = await getAccountId();
+  if (!accountId) return;
+
+  const proxy = "https://corsproxy.io/?";
+  const url = `https://mail.zoho.in/api/accounts/${accountId}/messages/trash`;
+
+  try {
+    const res = await fetch(proxy + encodeURIComponent(url), {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Zoho-oauthtoken ' + token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ messageIds: [String(messageId)] })
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`HTTP ${res.status}: ${err.substring(0, 200)}`);
+    }
+
+    alert('✅ Message moved to Trash');
+    closeEmailModal();       // close modal
+    fetchZohoInbox();        // refresh inbox
+  } catch (e) {
+    alert('❌ Delete failed:\n\n' + e.message);
+    // Copy error to clipboard for debugging
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(e.message).catch(() => {});
+    }
+  }
+}
 
 
 
@@ -1847,6 +1894,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('modalCloseBtn').addEventListener('click', closeEmailModal);
   document.getElementById('replyBtn').addEventListener('click', replyToCurrentMessage);
 document.getElementById('forwardBtn').addEventListener('click', forwardCurrentMessage);
+document.getElementById('deleteBtn').addEventListener('click', deleteCurrentMessage);
   document.getElementById('emailModal').addEventListener('click', function(e) { if (e.target === this) closeEmailModal(); });
   document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && document.getElementById('emailModal').classList.contains('active')) closeEmailModal(); });
   updateAllFilters();
