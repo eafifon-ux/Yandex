@@ -1044,14 +1044,22 @@ function showFlagDebug(messages) {
 
   const sample = messages[0];
   const id = sample ? (sample.messageId || sample.id) : 'none';
+  // Show raw JSON (first 5000 chars to avoid overload)
+  const raw = JSON.stringify(sample, null, 2).substring(0, 5000);
   debugDiv.innerHTML = `
     <strong>🔍 First message ID:</strong> ${id}<br>
-    <button onclick="debugMessage('${id}')">📡 Fetch full API response</button>
-    <pre id="raw-response" style="background:#f5f5f5;padding:8px;font-size:0.85em;max-height:300px;overflow:auto;display:none;margin-top:8px;"></pre>
+    <details>
+      <summary>📦 Full JSON (first 5000 chars)</summary>
+      <pre style="background:#f5f5f5;padding:8px;font-size:0.85em;max-height:300px;overflow:auto;white-space:pre-wrap;">${escapeHtml(raw)}</pre>
+    </details>
+    <hr style="margin:8px 0;border:none;border-top:1px solid #ccc;">
+    <button onclick="debugMessage('${id}', '${sample.folderId || ''}')">📡 Try direct fetch with folderId</button>
+    <pre id="raw-response" style="background:#f5f5f5;padding:8px;font-size:0.85em;max-height:300px;overflow:auto;display:none;margin-top:8px;white-space:pre-wrap;"></pre>
   `;
 }
 
-async function debugMessage(messageId) {
+
+async function debugMessage(messageId, folderId) {
   if (!messageId) return;
   const token = getToken();
   const accountId = await getAccountId();
@@ -1059,14 +1067,14 @@ async function debugMessage(messageId) {
   const proxy = "https://corsproxy.io/?";
   const pre = document.getElementById('raw-response');
   pre.style.display = 'block';
-  pre.textContent = 'Trying different endpoints...';
+  pre.textContent = 'Trying single message with folderId...';
 
-  // List of possible single-message endpoints
+  // Patterns with folderId, since we have it now
   const urls = [
-    `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}`,
-    `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}/view`,
-    `https://mail.zoho.in/api/accounts/${accountId}/messages?messageId=${messageId}`,
-    `https://mail.zoho.in/api/accounts/${accountId}/messages/view?messageId=${messageId}`,
+    `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}`,
+    `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}/view`,
+    `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}?folderId=${folderId}`,
+    `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}/view?folderId=${folderId}`,
   ];
 
   for (const url of urls) {
@@ -1086,6 +1094,14 @@ async function debugMessage(messageId) {
   }
   pre.textContent += '\n\nAll endpoints failed.';
 }
+
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
 
 
 
