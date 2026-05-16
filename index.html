@@ -1127,7 +1127,8 @@ async function deleteCurrentMessage() {
   if (!accountId) return;
 
   const proxy = "https://corsproxy.io/?";
-  const url = `https://mail.zoho.in/api/accounts/${accountId}/messages/trash`;
+  // ✅ FIXED: correct endpoint per Zoho Mail API v2
+  const url = `https://mail.zoho.in/api/accounts/${accountId}/messages/actions/trash`;
 
   try {
     const res = await fetch(proxy + encodeURIComponent(url), {
@@ -1141,15 +1142,14 @@ async function deleteCurrentMessage() {
 
     if (!res.ok) {
       const err = await res.text();
-      throw new Error(`HTTP ${res.status}: ${err.substring(0, 200)}`);
+      throw new Error(`HTTP ${res.status}: ${err.substring(0, 300)}`);
     }
 
     alert('✅ Message moved to Trash');
-    closeEmailModal();       // close modal
-    fetchZohoInbox();        // refresh inbox
+    closeEmailModal();
+    fetchZohoInbox();
   } catch (e) {
     alert('❌ Delete failed:\n\n' + e.message);
-    // Copy error to clipboard for debugging
     if (navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(e.message).catch(() => {});
     }
