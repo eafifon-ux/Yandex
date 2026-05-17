@@ -264,7 +264,21 @@ body.privacy-mode .mail-from {
 .label-pill.important { background: #fff9c4; color: #f57f17; }
 .label-pill.info      { background: #e3f2fd; color: #1565c0; }
 
+.flag-pill {
+  border: 1px solid #ccc;
+  background: white;
+  padding: 4px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.85em;
+  transition: all 0.15s;
+}
 
+.flag-pill.active {
+  background: #1e6cff;
+  color: white;
+  border-color: #1e6cff;
+}
   
 </style>
 </head>
@@ -497,6 +511,15 @@ function openShortcutModal() {
       <!-- DEBUG DIV – shows API folder response -->
       <div id="folderDebug" style="background:#ffe0e0; color:#b00; padding:10px; margin:10px 0; border:1px solid red; font-size:0.9em; white-space:pre-wrap; display:none; width:100%;"></div>
     </div>
+    <!-- Add this right after the folder dropdown (inside the card) -->
+<div id="flag-filter-bar" style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:10px;">
+  <span style="font-weight:600; font-size:0.9em; color:#555;">Flags:</span>
+  <button class="flag-pill active" data-flag="">All</button>
+  <button class="flag-pill" data-flag="follow-up">🟠 Follow Up</button>
+  <button class="flag-pill" data-flag="important">🟡 Waiting</button>
+  <button class="flag-pill" data-flag="info">🔵 Read Through</button>
+</div>
+
     <button id="loadInboxBtn" onclick="fetchZohoInbox()">Load Inbox</button>
     <span style="line-height:2; color:#888;">(Filters applied)</span>
   </div>
@@ -620,6 +643,8 @@ let currentDayFilter = null;
 let currentDOMFilter = null;
 let currentSeason = null;
 let currentDOYMonth = null;
+let currentFlagFilter = "";   // "" = show all flags
+
 
 const dayNames = ["Wednesday","Thursday","Friday","Saturday","Sunday","Monday","Tuesday"];
 const dayShort = ["W","TH","F","S","SN","M","T"];
@@ -1006,6 +1031,11 @@ function filterByDOYMonth(messages, month) {
 
 function applyFilters(messages) {
   let filtered = messages;
+  // --- Flag filter ---
+if (currentFlagFilter) {
+  filtered = filtered.filter(m => (m.flagid || '') === currentFlagFilter);
+}
+
   // Apply date mode filter (DOY/DOS/DOM)
   if (doyActive && currentDOYMonth !== null) {
     filtered = filterByDOYMonth(filtered, currentDOYMonth);
@@ -1921,6 +1951,18 @@ document.getElementById('gpc-display').addEventListener('click', togglePrivacyMo
   document.getElementById('folderSelect').addEventListener('change', function() {
     fetchZohoInbox();
   });
+  // --- Flag filter handler ---
+document.querySelectorAll('.flag-pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const flag = btn.dataset.flag;
+    currentFlagFilter = (flag === currentFlagFilter) ? "" : flag;
+    document.querySelectorAll('.flag-pill').forEach(b =>
+      b.classList.toggle('active', b.dataset.flag === currentFlagFilter)
+    );
+    fetchZohoInbox();
+  });
+});
+
 
   // --- NEW: Close shortcut modal ---
   document.getElementById('shortcutCloseBtn').addEventListener('click', function() {
