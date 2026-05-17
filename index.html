@@ -451,21 +451,16 @@ body.privacy-mode .mail-from {
     <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
       <button id="replyBtn" class="secondary" style="font-size:0.85em; padding:4px 12px;">↩ Reply</button>
       <button id="forwardBtn" class="secondary" style="font-size:0.85em; padding:4px 12px;">↪ Forward</button>
-      <!-- Add this DELETE button inside the modal, beside Reply & Forward -->
-<button id="deleteBtn" class="secondary" style="font-size:0.85em; padding:4px 12px; color:#b00; border-color:#faa; background:#ffe0e0;">🗑 Delete</button>
-
-
+<button id="readToggleBtn" class="secondary" style="font-size:1.2em; padding:4px 8px; display:none; margin-left:auto; line-height:1; display:inline-flex; align-items:center; justify-content:center; transform: translateY(16px);">🔵</button>
 
 
     <div id="modalContent">
-      <div class="modal-header" style="position:relative;">
-  <button id="readToggleBtn" class="secondary" style="float:right; font-size:1.2em; padding:4px 8px; display:none; line-height:1;">🔵</button>
-  <h3 class="modal-subject" id="modalSubject">Subject</h3>
-  <div class="modal-from" id="modalFrom">From:</div>
-  <div class="modal-to" id="modalTo">To:</div>
-  <div class="modal-date-zulu" id="modalDateZulu">Loading…</div>
-</div>
-
+      <div class="modal-header">
+        <h3 class="modal-subject" id="modalSubject">Subject</h3>
+        <div class="modal-from" id="modalFrom">From:</div>
+        <div class="modal-to" id="modalTo">To:</div>
+        <div class="modal-date-zulu" id="modalDateZulu">Loading…</div>
+      </div>
       <div class="modal-body" id="modalBody">
         <div class="loading-text">Loading message…</div>
       </div>
@@ -1110,106 +1105,6 @@ async function fetchZohoInbox() {
     fallbackCopy(msg);
   }
 }
-
-// Add this function anywhere inside your <script> block
-
-async function deleteCurrentMessage() {
-  if (!currentModalMessage) return;
-  const msg = currentModalMessage;
-  const messageId = msg.messageId || msg.id;
-  if (!messageId) { alert('Cannot determine message ID.'); return; }
-  if (!confirm('🗑 Move this message to Trash?')) return;
-
-  const token = getToken();
-  if (!token) return;
-  const accountId = await getAccountId();
-  if (!accountId) return;
-
-  // Collect all potentially valid endpoints (try every known pattern)
-  const trashFolderId = await getTrashFolderId();
-  const proxy = "https://corsproxy.io/?";
-  const endpoints = [];
-
-  // 1. Direct trash endpoints
-  const trashUrls = [
-    `https://mail.zoho.in/api/accounts/${accountId}/messages/trash`,
-    `https://mail.zoho.in/api/accounts/${accountId}/messages/actions/trash`,
-    `https://mail.zoho.in/api/v1/accounts/${accountId}/messages/trash`,
-    `https://mail.zoho.in/api/v2/accounts/${accountId}/messages/trash`,
-    `https://mail.zoho.in/api/mail/v1/accounts/${accountId}/messages/trash`,
-    `https://mail.zoho.in/api/mail/v2/accounts/${accountId}/messages/trash`
-  ];
-  trashUrls.forEach(url => endpoints.push({ url, body: { messageIds: [String(messageId)] } }));
-
-  // 2. Move to folder (if trash folder exists)
-  if (trashFolderId) {
-    endpoints.push({
-      url: `https://mail.zoho.in/api/accounts/${accountId}/messages/move`,
-      body: { messageIds: [String(messageId)], folderId: trashFolderId }
-    });
-  }
-
-  // 3. Mark as spam (alternative)
-  const spamUrls = [
-    `https://mail.zoho.in/api/accounts/${accountId}/messages/markspam`,
-    `https://mail.zoho.in/api/v1/accounts/${accountId}/messages/markspam`,
-    `https://mail.zoho.in/api/v2/accounts/${accountId}/messages/markspam`
-  ];
-  spamUrls.forEach(url => endpoints.push({ url, body: { messageIds: [String(messageId)] } }));
-
-  // 4. Try delete (unofficial but sometimes available)
-  const deleteUrls = [
-    `https://mail.zoho.in/api/accounts/${accountId}/messages/delete`,
-    `https://mail.zoho.in/api/v1/accounts/${accountId}/messages/delete`
-  ];
-  deleteUrls.forEach(url => endpoints.push({ url, body: { messageIds: [String(messageId)] } }));
-
-  // Try each endpoint in order
-  for (const { url, body } of endpoints) {
-    try {
-      const res = await fetch(proxy + encodeURIComponent(url), {
-        method: 'POST',
-        headers: { 'Authorization': 'Zoho-oauthtoken ' + token, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-      if (res.ok) {
-        alert('✅ Message moved to Trash');
-        closeEmailModal();
-        fetchZohoInbox();
-        return;
-      }
-    } catch (e) {
-      console.warn('Endpoint error:', url, e.message);
-    }
-  }
-
-  // All API endpoints failed – fallback: open in Zoho web
-  const debug = `Delete failed for account ${accountId}, message ${messageId}. Tried:\n${endpoints.map(e => e.url).join('\n')}`;
-  alert('❌ API delete failed. Opening message in Zoho web for manual action. Debug info copied to clipboard.');
-  const ta = document.createElement('textarea');
-  ta.value = debug;
-  document.body.appendChild(ta);
-  ta.select();
-  document.execCommand('copy');
-  document.body.removeChild(ta);
-
-  // Open in Zoho web interface
-  const webUrl = `https://mail.zoho.in/mail/read/${accountId}?messageId=${messageId}`;
-  window.open(webUrl, '_blank');
-}
-
-async function getTrashFolderId() {
-  const folders = await fetchFolders();
-  if (!folders || folders.length === 0) return null;
-  const trash = folders.find(f =>
-    f.folderName.toLowerCase().includes('trash') ||
-    f.folderName.toLowerCase().includes('deleted') ||
-    f.folderName.toLowerCase() === 'bin'
-  );
-  return trash ? trash.folderId : null;
-}
-
-
 
 
 
@@ -1952,7 +1847,6 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('modalCloseBtn').addEventListener('click', closeEmailModal);
   document.getElementById('replyBtn').addEventListener('click', replyToCurrentMessage);
 document.getElementById('forwardBtn').addEventListener('click', forwardCurrentMessage);
-document.getElementById('deleteBtn').addEventListener('click', deleteCurrentMessage);
   document.getElementById('emailModal').addEventListener('click', function(e) { if (e.target === this) closeEmailModal(); });
   document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && document.getElementById('emailModal').classList.contains('active')) closeEmailModal(); });
   updateAllFilters();
