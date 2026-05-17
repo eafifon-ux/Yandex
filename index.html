@@ -448,20 +448,10 @@ body.privacy-mode .mail-from {
     <button class="modal-close" id="modalCloseBtn">&times;</button>
     
     <!-- Reply & Forward buttons -->
-<div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
-  <button id="replyBtn" class="secondary" style="font-size:0.85em; padding:4px 12px;">↩ Reply</button>
-  <button id="forwardBtn" class="secondary" style="font-size:0.85em; padding:4px 12px;">↪ Forward</button>
-  <button id="readToggleBtn" class="secondary" style="font-size:1.2em; padding:4px 8px; line-height:1; display:inline-flex; align-items:center; justify-content:center; transform: translateY(16px);">🔵</button>
-</div>
-
-<!-- FLAG BUTTONS -->
-<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;" id="flagRow">
-  <button class="flag-btn" data-flag="" style="background:#eee; border:1px solid #ccc; border-radius:6px; padding:2px 10px; font-size:0.85em; cursor:pointer;">None</button>
-  <button class="flag-btn" data-flag="follow-up" style="background:#fff3e0; border:1px solid #e65100; border-radius:6px; padding:2px 10px; font-size:0.85em; cursor:pointer;">🟠 Follow Up</button>
-  <button class="flag-btn" data-flag="important" style="background:#fff9c4; border:1px solid #f57f17; border-radius:6px; padding:2px 10px; font-size:0.85em; cursor:pointer;">🟡 Waiting</button>
-  <button class="flag-btn" data-flag="info" style="background:#e3f2fd; border:1px solid #1565c0; border-radius:6px; padding:2px 10px; font-size:0.85em; cursor:pointer;">🔵 Read Through</button>
-</div>
->
+    <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+      <button id="replyBtn" class="secondary" style="font-size:0.85em; padding:4px 12px;">↩ Reply</button>
+      <button id="forwardBtn" class="secondary" style="font-size:0.85em; padding:4px 12px;">↪ Forward</button>
+<button id="readToggleBtn" class="secondary" style="font-size:1.2em; padding:4px 8px; display:none; margin-left:auto; line-height:1; display:inline-flex; align-items:center; justify-content:center; transform: translateY(16px);">🔵</button>
 
 
     <div id="modalContent">
@@ -984,37 +974,6 @@ function loadReadOverrides() {
   } catch (e) {}
 }
 
-// ---- Flag overrides (persistent with localStorage) ----
-const flagOverrides = new Map();
-
-function loadFlagOverrides() {
-  try {
-    const raw = localStorage.getItem('zohoFlagOverrides');
-    if (raw) {
-      const obj = JSON.parse(raw);
-      Object.keys(obj).forEach(k => flagOverrides.set(k, obj[k]));
-    }
-  } catch(e) {}
-}
-
-function saveFlagOverrides() {
-  const obj = {};
-  flagOverrides.forEach((v, k) => obj[k] = v);
-  localStorage.setItem('zohoFlagOverrides', JSON.stringify(obj));
-}
-
-loadFlagOverrides(); // call once at startup
-
-function updateModalFlagDisplay() {
-  const messageId = currentModalMessage ? String(currentModalMessage.messageId || currentModalMessage.id) : null;
-  if (!messageId) return;
-  const flag = flagOverrides.get(messageId) || '';
-  document.querySelectorAll('.flag-btn').forEach(btn => {
-    btn.style.outline = btn.dataset.flag === flag ? '2px solid #1e6cff' : 'none';
-  });
-}
-
-
 function saveReadOverrides() {
   const obj = {};
   readStatusOverrides.forEach((v, k) => obj[k] = v);
@@ -1043,9 +1002,8 @@ function renderInbox(messages) {
     const storedOverride = readStatusOverrides.get(String(messageId));
     const isUnread = storedOverride !== undefined ? (storedOverride === "0") : (msg.status === "0");
     
-    // ✅ Use local flag override if available, else server value
-    const overrideFlag = flagOverrides.get(String(messageId));
-    let flag = overrideFlag || msg.flagid || '';
+    // ✅ FIX: ignore "flag_not_set" and empty
+    let flag = msg.flagid || '';
     if (flag === 'flag_not_set' || flag === 'none' || flag === '') flag = '';
 
     html += `
@@ -1064,7 +1022,6 @@ function renderInbox(messages) {
   });
   inboxDiv.innerHTML = html;
 }
-
 
 
 
@@ -1387,25 +1344,16 @@ function openEmailModal(messageId, folderId) {
   const stored = messageStore.get(String(messageId));
   if (stored) {
     renderMessageWithMeta(stored);
-    // ✅ Update flag buttons after rendering
-    updateModalFlagDisplay();
   } else {
-    fetchFullMessage(messageId, folderId).then(() => {
-      // ✅ Update flag buttons after async load
-      updateModalFlagDisplay();
-    }).catch(() => {
-      // Even on error, try to update (will just do nothing)
-      updateModalFlagDisplay();
-    });
+    fetchFullMessage(messageId, folderId);
   }
 }
 
 function closeEmailModal() {
   document.getElementById('emailModal').classList.remove('active');
   document.getElementById('readToggleBtn').style.display = 'none';
-  fetchZohoInbox(); // reflect flag & read status changes in inbox
+  fetchZohoInbox(); // reflect the change in inbox
 }
-
 
 
 function renderMessageWithMeta(msg) {
@@ -1889,27 +1837,6 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.querySelector('#doy-filter-status .filter-remove').addEventListener('click',clearDOYFilter);
   document.querySelectorAll('.dos-season').forEach(td=>{ td.addEventListener('click',()=>setSeason(Number(td.dataset.season))); });
   document.querySelectorAll('.doy-month').forEach(td=>{ td.addEventListener('click',()=>setDOYMonth(Number(td.dataset.month))); });
-  // Flag button listeners
-document.querySelectorAll('.flag-btn').forEach(btn => {
-  btn.addEventListener('click', function() {
-    const flag = this.dataset.flag;
-    const messageId = currentModalMessage ? String(currentModalMessage.messageId || currentModalMessage.id) : null;
-    if (!messageId) return;
-    const currentFlag = flagOverrides.get(messageId) || '';
-    if (currentFlag === flag && flag !== '') {
-      flagOverrides.set(messageId, '');
-    } else {
-      flagOverrides.set(messageId, flag);
-    }
-    saveFlagOverrides();
-    updateModalFlagDisplay();
-    const storedMsg = messageStore.get(messageId);
-    if (storedMsg) {
-      storedMsg.flagid = flagOverrides.get(messageId) || 'flag_not_set';
-    }
-  });
-});
-
   document.getElementById('inbox').addEventListener('click', function(e) {
     const mailDiv = e.target.closest('.mail');
     if (!mailDiv) return;
