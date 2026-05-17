@@ -515,10 +515,18 @@ function openShortcutModal() {
 <div id="flag-filter-bar" style="margin-bottom:10px;">
   <div style="font-weight:600; font-size:0.9em; color:#555; margin-bottom:4px;">Flags:</div>
   <div style="display:flex; flex-direction:column; gap:4px;">
-    <button class="flag-pill active" data-flag="">All</button>
-    <button class="flag-pill" data-flag="follow-up">🟠 Follow Up</button>
-    <button class="flag-pill" data-flag="important">🟡 Waiting</button>
-    <button class="flag-pill" data-flag="info">🔵 Read Through</button>
+    <button class="flag-pill" data-flag="">
+      <span class="flag-emoji"> </span>All
+    </button>
+    <button class="flag-pill" data-flag="follow-up">
+      <span class="flag-emoji">🟠</span> Follow Up
+    </button>
+    <button class="flag-pill" data-flag="important">
+      <span class="flag-emoji">🟡</span> Waiting
+    </button>
+    <button class="flag-pill" data-flag="info">
+      <span class="flag-emoji">🔵</span> Read Through
+    </button>
   </div>
 
     <button id="loadInboxBtn" onclick="fetchZohoInbox()">Load Inbox</button>
