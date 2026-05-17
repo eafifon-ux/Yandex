@@ -1127,7 +1127,8 @@ async function deleteCurrentMessage() {
   if (!accountId) return;
 
   const proxy = "https://corsproxy.io/?";
-  const url = `https://mail.zoho.in/api/accounts/${accountId}/messages/actions/trash`;
+  // ✅ CORRECT endpoint: /messages/trash (not /actions/trash)
+  const url = `https://mail.zoho.in/api/accounts/${accountId}/messages/trash`;
 
   try {
     const res = await fetch(proxy + encodeURIComponent(url), {
@@ -1152,7 +1153,7 @@ async function deleteCurrentMessage() {
     const errorMessage = e.message;
     alert('❌ Delete failed:\n\n' + errorMessage);
 
-    // ✅ Copy debug info using reliable temporary textarea
+    // Copy debug to clipboard
     const debugText = `Delete Failed Debug Info:\n${errorMessage}\n\nAccount ID: ${accountId}\nMessage ID: ${messageId}`;
     const textArea = document.createElement('textarea');
     textArea.value = debugText;
@@ -1162,6 +1163,7 @@ async function deleteCurrentMessage() {
     document.body.removeChild(textArea);
   }
 }
+
 
 
 
