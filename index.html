@@ -265,20 +265,30 @@ body.privacy-mode .mail-from {
 .label-pill.info      { background: #e3f2fd; color: #1565c0; }
 
 .flag-pill {
-  border: 1px solid #ccc;
   background: white;
-  padding: 4px 12px;
-  border-radius: 999px;
+  border: 1px solid #ccc;
+  padding: 6px 14px;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 0.85em;
+  font-size: 0.9em;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   transition: all 0.15s;
 }
-
 .flag-pill.active {
   background: #1e6cff;
   color: white;
   border-color: #1e6cff;
 }
+.flag-emoji {
+  display: inline-block;
+  width: 1.8em;        /* same width for all, even empty */
+  text-align: center;
+  flex-shrink: 0;
+}
+
   
 </style>
 </head>
@@ -516,7 +526,7 @@ function openShortcutModal() {
   <div style="font-weight:600; font-size:0.9em; color:#555; margin-bottom:4px;">Flags:</div>
   <div style="display:flex; flex-direction:column; gap:4px;">
     <button class="flag-pill" data-flag="">
-      <span class="flag-emoji"> </span>All
+      <span class="flag-emoji"></span> All
     </button>
     <button class="flag-pill" data-flag="follow-up">
       <span class="flag-emoji">🟠</span> Follow Up
