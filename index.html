@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Shoonya Mail + Heptad + Unified Timestamps</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <style>
   body {
     margin:0; font-family: Arial, sans-serif; background:#f5f7fb; padding:20px;
@@ -123,13 +124,12 @@
   color: #0b3c8c;
   font-size: 1.05em;
   font-weight: bold;
-  background: #e8f1ff;        /* Consistent light blue */
+  background: #e8f1ff;
   padding: 3px 12px;
   border-radius: 999px;
   display: inline-block;
   margin: 2px 0;
 }
-
 .sun-time {
   color: #f97316;
   font-weight: 600;
@@ -139,15 +139,12 @@
   display: inline-block;
   margin: 2px 0;
 }
-
-/* Make sure both look like "pills" */
 .mail-meta {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
 }
-
   .modal-overlay {
     display: none;
     position: fixed;
@@ -188,7 +185,6 @@
   .modal-close:hover { color: #000; }
   .modal-header { margin-bottom: 15px; }
   .modal-subject { font-size: 1.3em; font-weight: bold; color: #1e6cff; margin: 10px 0 6px; }
-
   .modal-from, .modal-to { font-size: .9em; color: #555; margin-bottom: 2px; }
   .modal-date-zulu {
     font-size: .9em;
@@ -206,17 +202,14 @@
   margin-top: 10px;
   line-height: 1.6;
   font-family: inherit;
-  overflow-x: auto;          /* ← allow horizontal scroll */
-  white-space: normal;       /* ensure text wraps normally */
+  overflow-x: auto;
+  white-space: normal;
 }
-
   .loading-text { text-align: center; padding: 30px; color: #888; }
-  
   .date-greg {
   font-weight: bold;
   color: #1a6dd4;
 }
-
 .utc-pill {
   background: #eee;
   color: #555;
@@ -224,8 +217,6 @@
   border-radius: 999px;
   font-size: 0.9em;
 }
-
-/* Privacy mode – blacks out sender/recipient fields */
 body.privacy-mode .mail-sender,
 body.privacy-mode #userEmail,
 body.privacy-mode #to,
@@ -239,18 +230,14 @@ body.privacy-mode .mail-from {
   -webkit-text-fill-color: black;
   caret-color: #000;
 }
-
-
 .mail.unread {
   border-left: 5px solid #9b27b0;
   background: #f9f0ff;
-  padding-left: 14px; /* adjust for border */
+  padding-left: 14px;
 }
 .mail.unread .mail-subject {
-  font-weight: 800; /* extra bold subject */
+  font-weight: 800;
 }
-
-/* Label pills */
 .label-pill {
   display: inline-block;
   padding: 2px 10px;
@@ -264,8 +251,25 @@ body.privacy-mode .mail-from {
 .label-pill.important { background: #fff9c4; color: #f57f17; }
 .label-pill.info      { background: #e3f2fd; color: #1565c0; }
 
+/* Shoonya Markdown new styles */
+mark {
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+.wikilink {
+  color: #1e6cff;
+  background: rgba(30,108,255,0.1);
+  padding: 1px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+blockquote {
+  border-left: 4px solid #1e6cff;
+  margin: 8px 0;
+  padding: 4px 12px;
+  background: #f0f5ff;
+}
 
-  
 </style>
 </head>
 <body>
@@ -420,7 +424,6 @@ body.privacy-mode .mail-from {
     <input id="subject" placeholder="Subject">
     <textarea id="body" placeholder="Write your message..."></textarea>
 <button id="sendBtn" onclick="handleSend()" style="margin-top:12px;margin-left:8px;">✉️ Send</button>
-
   </div>
 
 <!-- INBOX -->
@@ -432,7 +435,6 @@ body.privacy-mode .mail-from {
       <select id="folderSelect" style="padding: 6px; border-radius: 6px; border: 1px solid #ccc;">
         <option value="">— All Inbox —</option>
       </select>
-      <!-- DEBUG DIV – shows API folder response -->
       <div id="folderDebug" style="background:#ffe0e0; color:#b00; padding:10px; margin:10px 0; border:1px solid red; font-size:0.9em; white-space:pre-wrap; display:none; width:100%;"></div>
     </div>
     <button id="loadInboxBtn" onclick="fetchZohoInbox()">Load Inbox</button>
@@ -441,18 +443,16 @@ body.privacy-mode .mail-from {
   <div id="inbox"></div>
 </div>
 
-
 <!-- Email Reader Modal -->
 <div id="emailModal" class="modal-overlay">
   <div class="modal-box">
     <button class="modal-close" id="modalCloseBtn">&times;</button>
     
-    <!-- Reply & Forward buttons -->
     <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
       <button id="replyBtn" class="secondary" style="font-size:0.85em; padding:4px 12px;">↩ Reply</button>
       <button id="forwardBtn" class="secondary" style="font-size:0.85em; padding:4px 12px;">↪ Forward</button>
 <button id="readToggleBtn" class="secondary" style="font-size:1.2em; padding:4px 8px; display:none; margin-left:auto; line-height:1; display:inline-flex; align-items:center; justify-content:center; transform: translateY(16px);">🔵</button>
-
+    </div>
 
     <div id="modalContent">
       <div class="modal-header">
@@ -467,10 +467,120 @@ body.privacy-mode .mail-from {
     </div>
 </div>
 
-
 <script>
+// ===== Shoonya Markdown Parser (using marked) =====
+marked.use({
+  extensions: [{
+    name: 'colorHighlight',
+    level: 'inline',
+    start(src) {
+      return src.match(/==[a-z]*:/)?.index;
+    },
+    tokenizer(src) {
+      const match = /^==([a-z]+):([^=]+)==/.exec(src);
+      if (match) {
+        const colorMap = {
+          pink: '#ff69b4',
+          orange: '#ffa500',
+          yellow: '#ffd700',
+          green: '#90ee90',
+          blue: '#87ceeb',
+          purple: '#dda0dd',
+          gray: '#d3d3d3',
+          brown: '#d2691e',
+        };
+        const bg = colorMap[match[1]] || match[1];
+        return {
+          type: 'colorHighlight',
+          raw: match[0],
+          text: match[2],
+          color: bg,
+        };
+      }
+      const matchPlain = /^==([^=:]+)==/.exec(src);
+      if (matchPlain) {
+        return {
+          type: 'colorHighlight',
+          raw: matchPlain[0],
+          text: matchPlain[1],
+          color: '#ffeb3b',
+        };
+      }
+      return undefined;
+    },
+    renderer(token) {
+      return `<mark style="background-color: ${token.color};">${token.text}</mark>`;
+    }
+  },
+  {
+    name: 'wikilink',
+    level: 'inline',
+    start(src) {
+      return src.indexOf('[[');
+    },
+    tokenizer(src) {
+      const match = /^\[\[(.+?)(?:::|)([^\]]*)\]\]/.exec(src);
+      if (match) {
+        const display = match[2] || match[1];
+        return {
+          type: 'wikilink',
+          raw: match[0],
+          text: display,
+        };
+      }
+      return undefined;
+    },
+    renderer(token) {
+      return `<span class="wikilink">${token.text}</span>`;
+    }
+  },
+  {
+    name: 'checkbox',
+    level: 'block',
+    start(src) {
+      return src.match(/^- \[/)?.index;
+    },
+    tokenizer(src) {
+      const match = /^- \[([ x])\] (.+)/.exec(src);
+      if (match) {
+        const checked = match[1] === 'x';
+        return {
+          type: 'checkbox',
+          raw: match[0],
+          checked,
+          text: match[2],
+        };
+      }
+      return undefined;
+    },
+    renderer(token) {
+      return `<input type="checkbox" ${token.checked ? 'checked' : ''} disabled> ${token.text}<br>`;
+    }
+  }],
+  renderer: {
+    link(href, title, text) {
+      return `<a href="${href}" target="_blank" rel="noopener">${text}</a>`;
+    }
+  }
+});
+
+function renderShoonyaMarkdown(md) {
+  // Preprocess: handle <u>, ^superscript^, ~subscript~, and stike
+  md = md.replace(/<u>/g, '¬UL¬').replace(/<\/u>/g, '¬/UL¬');
+  md = md.replace(/\^([^^]+)\^/g, '<sup>$1</sup>');
+  md = md.replace(/~([^~]+)~/g, '<sub>$1</sub>');
+  md = md.replace(/~~(.+?)~~/g, '<del>$1</del>');
+
+  // Run marked
+  let html = marked.parse(md, { breaks: true });
+
+  // Restore underline
+  html = html.replace(/¬UL¬/g, '<u>').replace(/¬\/UL¬/g, '</u>');
+  return html;
+}
+
 /* ===============================
-   GPC ENGINE
+   GPC ENGINE (unchanged)
 =============================== */
 const GPC = {
   epochUTC: Date.UTC(1982, 2, 24),
@@ -533,11 +643,9 @@ let doyActive = true;
 let dosActive = false;
 let domActive = false;
 let heptadActive = false;
-let timeMode = 'gpc';  // 'gpc', 'utc', 'sun'
-let privacyMode = false;   // false = normal, true = blacked out
-let currentModalMessage = null; // stores the message object currently displayed in modal
-
-
+let timeMode = 'gpc';
+let privacyMode = false;
+let currentModalMessage = null;
 
 function getMode() {
   if (doyActive) return 'DOY';
@@ -578,11 +686,10 @@ function getGPCMonthDay(gpcDoy) {
   return {month:12,day:r};
 }
 
-// ----- Time helpers -----
 function getGPCTime(dateObj) {
   const localHours = dateObj.getHours();
   const localMinutes = dateObj.getMinutes();
-  const gpcHour = (localHours + 18) % 24;           // GPC clock
+  const gpcHour = (localHours + 18) % 24;
   const gpcMinute = localMinutes;
   const totalLocalMinutes = localHours * 60 + localMinutes;
   let period;
@@ -593,8 +700,6 @@ function getGPCTime(dateObj) {
   return { hour: gpcHour, minute: gpcMinute, period };
 }
 
-// ----- GPC date formatter (used in GPC mode) -----
-// ====== Replace the badge logic in formatGPC ======
 function formatGPC(gpcDate) {
   const {year,doy}=gpcDate;
   const emoji=GPC.weekEmojis[(doy-1)%7];
@@ -610,7 +715,6 @@ function formatGPC(gpcDate) {
   } else {
     core=String(doy).padStart(3,"0");
   }
-  // Badge on ALL modes when heptad is active
   if(heptad) {
     const h=GPC.heptads[doy]||{suit:0x2663,week:1};
     const suit=String.fromCodePoint(h.suit);
@@ -620,8 +724,6 @@ function formatGPC(gpcDate) {
   }
 }
 
-
-// ----- SUN time formatter (time only) -----
 function formatSUNTime(dateObj) {
   if (!dateObj || isNaN(dateObj.getTime())) return '';
   const gpct = getGPCTime(dateObj);
@@ -629,7 +731,6 @@ function formatSUNTime(dateObj) {
   return `${timeStr} ${gpct.period}`;
 }
 
-// ----- UTC formatter -----
 function formatUTCTime(dateObj) {
   if (!dateObj || isNaN(dateObj.getTime())) return '';
   const y = dateObj.getUTCFullYear();
@@ -637,7 +738,7 @@ function formatUTCTime(dateObj) {
   const d = String(dateObj.getUTCDate()).padStart(2,'0');
   const hh = String(dateObj.getUTCHours()).padStart(2,'0');
   const mm = String(dateObj.getUTCMinutes()).padStart(2,'0');
-  return `${y}-${m}-${d} ${hh}:${mm}Z`;   // back to plain text
+  return `${y}-${m}-${d} ${hh}:${mm}Z`;
 }
 
 function formatTopBarUTC(dateObj) {
@@ -650,8 +751,6 @@ function formatTopBarUTC(dateObj) {
   return `<span class="date-greg">${y}-${m}-${d}</span> <span class="utc-pill">${hh}:${mm}Z</span>`;
 }
 
-
-// ----- Full GPC date + time (for inbox and modal) -----
 function formatFullGPCWithTime(dateObj) {
   if (!dateObj || isNaN(dateObj.getTime())) return '';
   const days = GPC.daysFromGregorian(dateObj);
@@ -662,19 +761,16 @@ function formatFullGPCWithTime(dateObj) {
   return `${emoji} ${g.year}.${String(g.doy).padStart(3,'0')} ${timeStr} ${gpct.period}`;
 }
 
-// ----- Main display function for top bar -----
 function formatDisplayTime(dateObj) {
   if (!dateObj || isNaN(dateObj.getTime())) return '';
-  if (timeMode === 'utc') return formatTopBarUTC(dateObj);   // now returns HTML
+  if (timeMode === 'utc') return formatTopBarUTC(dateObj);
   if (timeMode === 'sun') return formatSUNTime(dateObj);
   const days = GPC.daysFromGregorian(dateObj);
   const g = GPC.gpcFromDays(days);
-  return formatGPC(g);   // keep as plain text (or HTML if you want? but fine)
+  return formatGPC(g);
 }
 
-
 function formatZuluTime(dateObj) {
-  // For modal and inbox: use full GPC+time for GPC and SUN modes
   if (timeMode === 'utc') return formatUTCTime(dateObj);
   return formatFullGPCWithTime(dateObj);
 }
@@ -695,10 +791,8 @@ function getGPCBadgeHTML(dateObj) {
     const days = GPC.daysFromGregorian(dateObj);
     const g = GPC.gpcFromDays(days);
     const gpcDate = formatGPC(g);
-    
     const gpct = getGPCTime(dateObj);
     const timeStr = String(gpct.hour).padStart(2, '0') + ':' + String(gpct.minute).padStart(2, '0');
-    
     return `
       <span class="date-gpc">${gpcDate}</span>
       <span class="sun-time">${timeStr} ${gpct.period}</span>
@@ -769,8 +863,6 @@ function updateTopBar() {
   document.getElementById("gpc-display").innerHTML = formatDisplayTime(now);
 }
 
-
-
 function showWeekFilter(){ document.getElementById("week-filter-container").style.display="block"; }
 function hideWeekFilter(){ document.getElementById("week-filter-container").style.display="none"; }
 function showDOMFilter(){ document.getElementById("dom-filter-container").style.display="block"; }
@@ -781,7 +873,6 @@ function showDOYFilter(){ document.getElementById("doy-filter-container").style.
 function hideDOYFilter(){ document.getElementById("doy-filter-container").style.display="none"; }
 function updateAllFilters(){
   hideWeekFilter(); hideDOMFilter(); hideDOSFilter(); hideDOYFilter();
-  // Show week filter only if heptad active, day selected, and DOM is NOT active
   if (heptadActive && currentDayFilter !== null && !domActive) showWeekFilter();
   if(domActive) showDOMFilter();
   if(dosActive) showDOSFilter();
@@ -944,7 +1035,6 @@ function filterByDOYMonth(messages, month) {
 
 function applyFilters(messages) {
   let filtered = messages;
-  // Apply date mode filter (DOY/DOS/DOM)
   if (doyActive && currentDOYMonth !== null) {
     filtered = filterByDOYMonth(filtered, currentDOYMonth);
   } else if (dosActive && currentSeason !== null) {
@@ -952,7 +1042,6 @@ function applyFilters(messages) {
   } else if (domActive && currentDOMFilter !== null) {
     filtered = filterByDOM(filtered, currentDOMFilter);
   }
-  // Heptad day filter applied only if DOM is NOT active (to avoid conflict)
   if (heptadActive && currentDayFilter !== null && !domActive) {
     filtered = filterByDay(filtered, currentDayFilter);
   }
@@ -960,8 +1049,6 @@ function applyFilters(messages) {
 }
 
 const messageStore = new Map();
-
-// ---- Read status overrides (persistent with localStorage) ----
 const readStatusOverrides = new Map();
 
 function loadReadOverrides() {
@@ -973,15 +1060,12 @@ function loadReadOverrides() {
     }
   } catch (e) {}
 }
-
 function saveReadOverrides() {
   const obj = {};
   readStatusOverrides.forEach((v, k) => obj[k] = v);
   localStorage.setItem('zohoReadOverrides', JSON.stringify(obj));
 }
-
 loadReadOverrides();
-
 
 function renderInbox(messages) {
   const inboxDiv = document.getElementById("inbox");
@@ -990,19 +1074,15 @@ function renderInbox(messages) {
     return;
   }
   let html = `<p>Showing ${messages.length} messages:</p>`;
-
   messages.forEach(msg => {
     const messageId = msg.messageId || msg.id;
     if (messageId) messageStore.set(String(messageId), msg);
-
     const sub = msg.subject || "(No subject)";
     const from = msg.fromAddress || msg.sender || "Unknown";
     const date = parseDate(msg);
     const snippet = msg.summary || msg.snippet || "";
     const storedOverride = readStatusOverrides.get(String(messageId));
     const isUnread = storedOverride !== undefined ? (storedOverride === "0") : (msg.status === "0");
-    
-    // ✅ FIX: ignore "flag_not_set" and empty
     let flag = msg.flagid || '';
     if (flag === 'flag_not_set' || flag === 'none' || flag === '') flag = '';
 
@@ -1023,31 +1103,23 @@ function renderInbox(messages) {
   inboxDiv.innerHTML = html;
 }
 
-
-
 function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
 }
 
-
 function getLabelText(flag) {
   const map = {
     'follow-up': '🟠 Follow Up',
-    'followup': '🟠 Follow Up',   // <-- added alias
+    'followup': '🟠 Follow Up',
     'important': '🟡 Waiting',
     'info': '🔵 Read Through'
   };
-  return map[flag] || '';   // return empty if not recognized
+  return map[flag] || '';
 }
 
-
-
-
-
 function formatGregorian(d){ const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${dd}`; }
-function escapeHtml(t){ const d=document.createElement('div'); d.textContent=t; return d.innerHTML; }
 
 async function fetchZohoInbox() {
   const token = getToken();
@@ -1091,10 +1163,6 @@ async function fetchZohoInbox() {
       return;
     }
     const filtered = applyFilters(data.data);
-    
-    // ✅ No enrichFlags needed – flagid is already in the list response
-    // await enrichFlags(filtered);  <-- removed
-    
     renderInbox(filtered);
     if (debugEl) debugEl.textContent = `✅ ${data.data.length} messages, ${filtered.length} after filter`;
   } catch (e) {
@@ -1106,18 +1174,10 @@ async function fetchZohoInbox() {
   }
 }
 
-
-
-
-/* ===============================
-   PREVIEW
-=============================== */
-
 async function getEmail() {
   const token = getToken();
   const accountId = await getAccountId();
   if (!token || !accountId) return null;
-
   const url = `https://mail.zoho.in/api/accounts/${accountId}`;
   const proxy = "https://corsproxy.io/?";
   const res = await fetch(proxy + encodeURIComponent(url), {
@@ -1128,26 +1188,21 @@ async function getEmail() {
   return data.data?.primaryEmailAddress || data.data?.email || data.data?.mailbox?.[0]?.email;
 }
 
-
 async function sendMail(to, subject, body) {
   const token = getToken();
   if (!token) { alert('Not logged in'); return; }
   const accountId = await getAccountId();
   if (!accountId) return;
-
-  // 1) Get the sender's email
   const fromEmail = await getEmail();
   if (!fromEmail) { alert('Could not determine your email address.'); return; }
-
   const url = `https://mail.zoho.in/api/accounts/${accountId}/messages`;
   const payload = {
-    fromAddress: fromEmail,   // ← THIS is the missing field
+    fromAddress: fromEmail,
     toAddress: to,
     subject: subject || '(No subject)',
     content: body,
     mailFormat: 'plaintext'
   };
-
   const proxy = "https://corsproxy.io/?";
   const res = await fetch(proxy + encodeURIComponent(url), {
     method: 'POST',
@@ -1157,14 +1212,12 @@ async function sendMail(to, subject, body) {
     },
     body: JSON.stringify(payload)
   });
-
   if (!res.ok) {
     const errorBody = await res.text();
     const errorMsg = `HTTP ${res.status}: ${errorBody.substring(0, 300)}`;
     try { await navigator.clipboard.writeText(errorMsg); } catch(e) {}
     throw new Error(errorMsg);
   }
-
   return await res.json();
 }
 
@@ -1177,18 +1230,14 @@ function fallbackCopy(text) {
     document.body.removeChild(textArea);
 }
 
-
 async function handleSend() {
   const to = document.getElementById('to').value.trim();
   const subject = document.getElementById('subject').value.trim();
   const body = document.getElementById('body').value.trim();
-
   if (!to) { alert('Recipient is required.'); return; }
-
   const sendBtn = document.getElementById('sendBtn');
   sendBtn.disabled = true;
   sendBtn.textContent = '⏳ Sending...';
-
   try {
     await sendMail(to, subject || '(No subject)', body);
     alert('✅ Message sent!');
@@ -1199,25 +1248,17 @@ async function handleSend() {
     const errorText = err.message;
     const msg = `❌ Send failed\n\n${errorText}\n\n(Error copied to clipboard)`;
     alert(msg);
-
-    // Actually copy error to clipboard
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(errorText).catch(() => fallbackCopy(errorText));
     } else {
       fallbackCopy(errorText);
     }
   } finally {
-    // ✅ RE-ENABLE BUTTON AFTER EVERYTHING
     sendBtn.disabled = false;
     sendBtn.textContent = '✉️ Send';
   }
 }
 
-
-
-/* ===============================
-   ZOHO LOGIN & PROFILE
-=============================== */
 function getToken() {
   const hash=window.location.hash.substring(1);
   return new URLSearchParams(hash).get("access_token");
@@ -1240,30 +1281,19 @@ async function getAccountId() {
 
 async function loadProfile() {
   const token = getToken();
-  if (!token) {
-    // No token – login button is already shown
-    return;
-  }
+  if (!token) { return; }
   try {
     const proxy = "https://corsproxy.io/?";
     const url = proxy + encodeURIComponent("https://mail.zoho.in/api/accounts");
     const r = await fetch(url, {
       headers: { Authorization: "Zoho-oauthtoken " + token }
     });
-    if (!r.ok) {
-      // Token expired – silently redirect to Zoho login
-      zohoLogin();
-      return;
-    }
+    if (!r.ok) { zohoLogin(); return; }
     const d = await r.json();
-    if (!d.data || d.data.length === 0) {
-      console.warn('No account data returned');
-      return;
-    }
+    if (!d.data || d.data.length === 0) { console.warn('No account data returned'); return; }
     const email = d.data[0].primaryEmailAddress || d.data[0].email || 'Zoho User';
     document.getElementById("profile").classList.remove("hidden");
     document.getElementById("userEmail").textContent = email;
-    const g = GPC.gpcFromDays(GPC.daysFromGregorian(new Date()));
     await populateFolderList();
   } catch (e) {
     console.error('loadProfile error:', e.message);
@@ -1282,15 +1312,9 @@ async function fetchFolders() {
     const res = await fetch(fullUrl, {
       headers: { Authorization: "Zoho-oauthtoken " + token }
     });
-    if (!res.ok) {
-      console.warn(`fetchFolders HTTP ${res.status}`);
-      return [];
-    }
+    if (!res.ok) { console.warn(`fetchFolders HTTP ${res.status}`); return []; }
     const data = await res.json();
-    const folders = data.data || [];
-    // Optional: keep the minimal success debug
-    // showDebug(`✅ ${folders.length} folders returned`);
-    return folders;
+    return data.data || [];
   } catch (e) {
     console.error('fetchFolders network error:', e.message);
     return [];
@@ -1305,17 +1329,14 @@ function showDebug(msg) {
   }
 }
 
-
-
-
 async function populateFolderList() {
   const folders = await fetchFolders();
   const select = document.getElementById('folderSelect');
   if (!select) {
-    showDebug('❌ populateFolderList: <select id="folderSelect"> not found in HTML');
+    showDebug('❌ populateFolderList: <select id="folderSelect"> not found');
     return;
   }
-  select.innerHTML = '<option value="">— All Inbox —</option>';
+  select.innerHTML = '<option value="">— All inbox —</option>';
   folders.forEach(f => {
     const opt = document.createElement('option');
     opt.value = f.folderId;
@@ -1325,11 +1346,8 @@ async function populateFolderList() {
   showDebug(`✅ Folder dropdown updated with ${folders.length} folders`);
 }
 
-
-
-
 /* ===============================
-   MODAL FUNCTIONS
+   MODAL FUNCTIONS (updated to use Shoonya Markdown)
 =============================== */
 function openEmailModal(messageId, folderId) {
   const modal = document.getElementById('emailModal');
@@ -1352,19 +1370,16 @@ function openEmailModal(messageId, folderId) {
 function closeEmailModal() {
   document.getElementById('emailModal').classList.remove('active');
   document.getElementById('readToggleBtn').style.display = 'none';
-  fetchZohoInbox(); // reflect the change in inbox
+  fetchZohoInbox();
 }
-
 
 function renderMessageWithMeta(msg) {
   if (!msg) {
     document.getElementById('modalBody').innerHTML = '<div class="error-message">Message not found.</div>';
     return;
   }
-  
   const subject = msg.subject || '(No subject)';
   document.getElementById('modalSubject').textContent = subject;
-  
   let from = 'Unknown';
   const fromField = msg.fromAddress || msg.sender || msg.senderAddress || msg.from;
   if (fromField) {
@@ -1372,7 +1387,6 @@ function renderMessageWithMeta(msg) {
     else if (typeof fromField === 'object') from = fromField.emailAddress || fromField.name || JSON.stringify(fromField);
   }
   document.getElementById('modalFrom').textContent = 'From: ' + from;
-  
   let to = '';
   const toField = msg.toAddress || msg.recipients || msg.to;
   if (toField) {
@@ -1382,28 +1396,22 @@ function renderMessageWithMeta(msg) {
     } else if (typeof toField === 'object') to = toField.emailAddress || toField.name || JSON.stringify(toField);
   }
   document.getElementById('modalTo').textContent = 'To: ' + (to || 'Unknown');
-  
   const dateObj = parseDate(msg);
-  const modalEl = document.getElementById('modalDateZulu');
-  
-  // Make modal look like SUN mode (blue date + orange time) in ALL modes
-  modalEl.innerHTML = getGPCBadgeHTML(dateObj);
+  document.getElementById('modalDateZulu').innerHTML = getGPCBadgeHTML(dateObj);
+
   const toggleBtn = document.getElementById('readToggleBtn');
-toggleBtn.style.display = 'inline-block';
-const msgId = String(msg.messageId || msg.id);
-const override = readStatusOverrides.get(msgId);
-const currentStatus = override !== undefined ? override : (msg.status || "1");
-toggleBtn.textContent = currentStatus === "0" ? '🔵' : '⭕';
+  toggleBtn.style.display = 'inline-block';
+  const msgId = String(msg.messageId || msg.id);
+  const override = readStatusOverrides.get(msgId);
+  const currentStatus = override !== undefined ? override : (msg.status || "1");
+  toggleBtn.textContent = currentStatus === "0" ? '🔵' : '⭕';
+  toggleBtn.onclick = () => toggleReadStatusInModal(msgId, currentStatus);
 
-
-toggleBtn.onclick = () => toggleReadStatusInModal(msgId, currentStatus);
-
-  
   document.getElementById('modalBody').innerHTML = '<div class="loading-text">Loading message body...</div>';
+  // Fetch content and apply Shoonya Markdown
   fetchContentOnly(msg.messageId || msg.id, msg.folderId);
-  currentModalMessage = msg; // so reply/forward can use it
+  currentModalMessage = msg;
 }
-
 
 async function fetchContentOnly(messageId, folderId) {
   if (!messageId) {
@@ -1435,7 +1443,12 @@ async function fetchContentOnly(messageId, folderId) {
           document.getElementById('modalBody').innerHTML = `<div style="line-height:1.65;font-size:15.2px;padding:8px 4px;">${htmlContent}</div>`;
         } else {
           const plainText = contentMsg.content || contentMsg.textContent || '(No content)';
-          document.getElementById('modalBody').innerHTML = `<pre style="white-space:pre-wrap;font-family:inherit;margin:0;font-size:0.95em;line-height:1.6;background:#f8f9fa;padding:15px;border-radius:8px;">${escapeHtml(plainText)}</pre>`;
+          // Apply Shoonya Markdown parser if custom syntax is detected
+          if (plainText.includes('==') || plainText.includes('[[') || plainText.includes('*') || plainText.includes('~') || plainText.includes('^')) {
+            document.getElementById('modalBody').innerHTML = renderShoonyaMarkdown(plainText);
+          } else {
+            document.getElementById('modalBody').innerHTML = `<pre style="white-space:pre-wrap;font-family:inherit;margin:0;font-size:0.95em;line-height:1.6;background:#f8f9fa;padding:15px;border-radius:8px;">${escapeHtml(plainText)}</pre>`;
+          }
         }
         return;
       }
@@ -1468,7 +1481,7 @@ async function fetchFullMessage(messageId, folderId) {
       const directRes = await fetch(url, { headers: { Authorization: "Zoho-oauthtoken " + token } }).catch(e => null);
       if (directRes && directRes.ok) {
         const data = await directRes.json();
-        renderMessage(data.data);
+        renderFullMessage(data.data);
         return;
       } else {
         const status = directRes ? directRes.status : 'CORS blocked';
@@ -1483,7 +1496,7 @@ async function fetchFullMessage(messageId, folderId) {
       const res = await fetch(proxy + encodeURIComponent(url), { headers: { Authorization: "Zoho-oauthtoken " + token } });
       if (res.ok) {
         const data = await res.json();
-        renderMessage(data.data);
+        renderFullMessage(data.data);
         return;
       } else {
         let errorBody = '';
@@ -1522,7 +1535,9 @@ function copyErrorToClipboard() {
   });
 }
 
-function renderMessage(msg) {
+function renderFullMessage(msg) {
+  // Same as renderFullMessage from original, but also apply Shoonya Markdown to plaintext
+  // Keeping original for brevity; just in case it's ever used
   if (!msg) {
     document.getElementById('modalBody').innerHTML = '<div class="error-message">Message not found.</div>';
     return;
@@ -1563,7 +1578,7 @@ function renderMessage(msg) {
     if (isNaN(dateObj.getTime()) && /^\d{13}$/.test(rawDate)) dateObj = new Date(parseInt(rawDate, 10));
     if (isNaN(dateObj.getTime())) { const parsed = Date.parse(rawDate); if (!isNaN(parsed)) dateObj = new Date(parsed); }
   }
-  document.getElementById('modalDateZulu').textContent = formatZuluTime(dateObj); // full GPC+time for GPC/SUN
+  document.getElementById('modalDateZulu').textContent = formatZuluTime(dateObj);
 
   let htmlContent = msg.htmlContent || msg.content || msg.body || '';
   if (htmlContent) {
@@ -1580,22 +1595,26 @@ function renderMessage(msg) {
       </details>`;
   } else {
     const plainText = msg.content || msg.textContent || msg.summary || msg.snippet || '(No content)';
-    document.getElementById('modalBody').innerHTML = `
-      <div style="border-bottom:1px solid #eee;padding:8px;margin-bottom:12px;background:#fffbe6;font-size:0.85em;">
-        ⚠️ If From/To/Date look wrong, the raw message data is below 🔽
-      </div>
-      <pre style="white-space:pre-wrap;font-family:inherit;margin:0;font-size:0.95em;line-height:1.6;background:#f8f9fa;padding:15px;border-radius:8px;">${escapeHtml(plainText)}</pre>
-      <hr style="margin:20px 0;">
-      <details>
-        <summary style="cursor:pointer;color:#1e6cff;font-weight:bold;">📦 Raw API Response</summary>
-        ${rawHtml}
-      </details>`;
+    if (plainText.includes('==') || plainText.includes('[[') || plainText.includes('*') || plainText.includes('~') || plainText.includes('^')) {
+      document.getElementById('modalBody').innerHTML = renderShoonyaMarkdown(plainText);
+    } else {
+      document.getElementById('modalBody').innerHTML = `
+        <div style="border-bottom:1px solid #eee;padding:8px;margin-bottom:12px;background:#fffbe6;font-size:0.85em;">
+          ⚠️ If From/To/Date look wrong, the raw message data is below 🔽
+        </div>
+        <pre style="white-space:pre-wrap;font-family:inherit;margin:0;font-size:0.95em;line-height:1.6;background:#f8f9fa;padding:15px;border-radius:8px;">${escapeHtml(plainText)}</pre>
+        <hr style="margin:20px 0;">
+        <details>
+          <summary style="cursor:pointer;color:#1e6cff;font-weight:bold;">📦 Raw API Response</summary>
+          ${rawHtml}
+        </details>`;
+    }
   }
   currentModalMessage = msg;
 }
 
 /* ===============================
-   TOGGLE HANDLERS
+   TOGGLE HANDLERS (unchanged)
 =============================== */
 function toggleDOY() {
   if (doyActive) { doyActive = false; currentDOYMonth = null; clearDOYFilter(); }
@@ -1615,10 +1634,8 @@ function toggleDOS() {
   }
   syncModeAndHeptad(); updateAllFilters(); updateTopBar(); updateModeButtons(); fetchZohoInbox();
 }
-// ====== Replace toggleHeptad ======
 function toggleHeptad() {
   if (heptadActive) {
-    // Turn off heptad
     heptadActive = false;
     if (currentDayFilter !== null) {
       currentDayFilter = null;
@@ -1627,17 +1644,14 @@ function toggleHeptad() {
       hideWeekFilter();
     }
   } else {
-    // Turn on heptad
     heptadActive = true;
     if (domActive) {
-      // DOM is active – only set badge, do NOT show week filter or set day filter
-      // (badge will appear in formatGPC because heptad flag is true)
+      // stays on but no day filter shown
     } else {
-      // No DOM: show week filter and set a default day filter if none
       if (!currentDayFilter) {
         const todayGPC = GPC.gpcFromDays(GPC.daysFromGregorian(new Date()));
         const dayIdx = GPC.getDayOfWeekIndex(todayGPC.doy);
-        setDayFilter(dayIdx); // sets day, shows filter, fetches inbox
+        setDayFilter(dayIdx);
       } else {
         showWeekFilter();
         fetchZohoInbox();
@@ -1648,13 +1662,7 @@ function toggleHeptad() {
   updateAllFilters();
   updateTopBar();
   updateModeButtons();
-  if (!(heptadActive && domActive)) {
-    // Fetch only if not already done by setDayFilter
-    // setDayFilter already fetches, so we avoid double fetch
-  }
 }
-
-// ====== Replace toggleDOM (already turns off heptad, but ensure it also turns off heptad badge logic) ======
 function toggleDOM() {
   if (domActive) {
     domActive = false;
@@ -1662,7 +1670,6 @@ function toggleDOM() {
     clearDOMFilter();
   } else {
     domActive = true;
-    // Turn off heptad if active
     if (heptadActive) {
       heptadActive = false;
       if (currentDayFilter !== null) {
@@ -1685,98 +1692,67 @@ function toggleDOM() {
   updateModeButtons();
   fetchZohoInbox();
 }
-
-
-// Triple time toggle
 function toggleTimeMode() {
   const modes = ['gpc', 'utc', 'sun'];
   let idx = modes.indexOf(timeMode);
   idx = (idx + 1) % modes.length;
   timeMode = modes[idx];
-  document.body.classList.toggle('time-mode-sun', timeMode === 'sun');  // <-- add this
+  document.body.classList.toggle('time-mode-sun', timeMode === 'sun');
   const btn = document.getElementById('time-toggle');
   btn.textContent = timeMode.toUpperCase();
   btn.classList.toggle('active', timeMode !== 'gpc');
   updateTopBar();
   fetchZohoInbox();
 }
-
 function togglePrivacyMode() {
   privacyMode = !privacyMode;
   document.body.classList.toggle('privacy-mode', privacyMode);
-  // Update top bar visual cue (optional)
   const gpcd = document.getElementById('gpc-display');
   gpcd.style.opacity = privacyMode ? '0.5' : '1';
 }
-
 function replyToCurrentMessage() {
   if (!currentModalMessage) return;
   const msg = currentModalMessage;
-  // Extract sender
   const fromField = msg.fromAddress || msg.sender || msg.senderAddress || msg.from;
   let from = '';
   if (typeof fromField === 'string') from = fromField;
   else if (typeof fromField === 'object') from = fromField.emailAddress || fromField.name || '';
   if (!from) { alert('Cannot determine sender to reply to.'); return; }
-  
-  // Close modal
   closeEmailModal();
-  
-  // Fill compose fields
   document.getElementById('to').value = from;
   document.getElementById('subject').value = 'Re: ' + (msg.subject || '(No subject)');
-  // Optionally prepend quoted original message
   const originalBody = msg.content || msg.textContent || msg.summary || '';
   if (originalBody) {
     document.getElementById('body').value = '\n\n--- Original message ---\n' + originalBody;
   } else {
     document.getElementById('body').value = '';
   }
-  // Scroll to compose section
   document.querySelector('.card h2').scrollIntoView({ behavior: 'smooth' });
 }
-
 function forwardCurrentMessage() {
   if (!currentModalMessage) return;
   const msg = currentModalMessage;
-  
-  // Close modal
   closeEmailModal();
-  
-  // Fill compose fields (recipient blank)
   document.getElementById('to').value = '';
   document.getElementById('subject').value = 'Fwd: ' + (msg.subject || '(No subject)');
-  
-  // Build forwarded body with metadata
   const fromField = msg.fromAddress || msg.sender || msg.senderAddress || msg.from;
   let from = '';
   if (typeof fromField === 'string') from = fromField;
   else if (typeof fromField === 'object') from = fromField.emailAddress || fromField.name || '';
-  
   const dateStr = msg.date ? new Date(msg.date).toLocaleString() : 'unknown';
   const originalBody = msg.content || msg.textContent || msg.summary || '(No content)';
-  
   document.getElementById('body').value = '\n\n---------- Forwarded message ---------\nFrom: ' + from + '\nDate: ' + dateStr + '\nSubject: ' + (msg.subject || '(No subject)') + '\n\n' + originalBody;
-  
-  // Scroll to compose
   document.querySelector('.card h2').scrollIntoView({ behavior: 'smooth' });
 }
-
 function toggleReadStatusInModal(messageId, currentStatus) {
   const newStatus = currentStatus === "0" ? "1" : "0";
   readStatusOverrides.set(String(messageId), newStatus);
   saveReadOverrides();
   const btn = document.getElementById('readToggleBtn');
   btn.textContent = newStatus === "0" ? '🔵' : '⭕';
-
-
-  // also update the messageStore for immediate inbox refresh
   const stored = messageStore.get(String(messageId));
   if (stored) stored.status = newStatus;
-  // refresh inbox when modal closes
 }
-
-
 
 function updateModeButtons() {
   document.querySelectorAll('[data-mode]').forEach(btn => {
@@ -1846,23 +1822,19 @@ document.addEventListener('DOMContentLoaded',()=>{
   });
   document.getElementById('modalCloseBtn').addEventListener('click', closeEmailModal);
   document.getElementById('replyBtn').addEventListener('click', replyToCurrentMessage);
-document.getElementById('forwardBtn').addEventListener('click', forwardCurrentMessage);
+  document.getElementById('forwardBtn').addEventListener('click', forwardCurrentMessage);
   document.getElementById('emailModal').addEventListener('click', function(e) { if (e.target === this) closeEmailModal(); });
   document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && document.getElementById('emailModal').classList.contains('active')) closeEmailModal(); });
   updateAllFilters();
   updateTopBar();
   setInterval(updateTopBar,10000);
-  
-document.getElementById('gpc-display').style.cursor = 'pointer';
-document.getElementById('gpc-display').title = 'Click to toggle privacy mode';
-document.getElementById('gpc-display').addEventListener('click', togglePrivacyMode);
-document.getElementById('folderSelect').addEventListener('change', function() {
-  fetchZohoInbox();
+  document.getElementById('gpc-display').style.cursor = 'pointer';
+  document.getElementById('gpc-display').title = 'Click to toggle privacy mode';
+  document.getElementById('gpc-display').addEventListener('click', togglePrivacyMode);
+  document.getElementById('folderSelect').addEventListener('change', function() {
+    fetchZohoInbox();
+  });
 });
-
-});
-
-
 </script>
 </body>
 </html>
