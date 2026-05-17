@@ -420,6 +420,62 @@ body.privacy-mode .mail-from {
     <input id="subject" placeholder="Subject">
     <textarea id="body" placeholder="Write your message..."></textarea>
 <button id="sendBtn" onclick="handleSend()" style="margin-top:12px;margin-left:8px;">✉️ Send</button>
+<!-- Expand keyboard shortcuts (only in privacy mode) -->
+<div id="shortcutExpand" style="display:none; margin-top:16px; text-align:center;">
+  <button onclick="openShortcutModal()" style="background:none; border:none; color:#1e6cff; text-decoration:underline; cursor:pointer; font-size:0.95em;">
+    ⌨️ Expand keyboard shortcuts
+  </button>
+</div>
+
+<!-- Shortcut modal overlay -->
+<div id="shortcutModal" class="modal-overlay">
+  <div class="modal-box" style="max-width:550px;">
+    <button class="modal-close onclick="document.getElementById('shortcutModal').classList.remove('active');">&times;</button>
+    <div style="padding:10px 0;">
+      <h3 style="margin:0 0 16px; color:#1e6cff;">⌨️ Keyboard Shortcuts</h3>
+      <table style="width:100%; border-collapse:collapse;">
+        <thead><tr style="border-bottom:2px solid #e0e0e0;"><th style="text-align:left;padding:8px 12px 6px 0;">Key</th><th style="text-align:left;padding:8px 0 6px;">Shortcut</th></tr></thead>
+        <tbody>
+          <tr><td style="padding:6px 12px 6px 0;border-bottom:1px solid #f0f0f0;">L</td><td style="padding:6px 0;border-bottom:1px solid #f0f0f0;">Label</td></tr>
+          <tr><td style="padding:6px 12px 6px 0;border-bottom:1px solid #f0f0f0;">E</td><td style="padding:6px 0;border-bottom:1px solid #f0f0f0;">Archive</td></tr>
+          <tr><td style="padding:6px 12px 6px 0;border-bottom:1px solid #f0f0f0;">V</td><td style="padding:6px 0;border-bottom:1px solid #f0f0f0;">Label + Archive</td></tr>
+          <tr><td style="padding:6px 12px 6px 0;border-bottom:1px solid #f0f0f0;">⇧ + #</td><td style="padding:6px 0;border-bottom:1px solid #f0f0f0;">Delete</td></tr>
+          <tr><td style="padding:6px 12px 6px 0;border-bottom:1px solid #f0f0f0;">G + I</td><td style="padding:6px 0;border-bottom:1px solid #f0f0f0;">Go to Inbox</td></tr>
+          <tr><td style="padding:6px 12px 6px 0;border-bottom:1px solid #f0f0f0;"><strong>K</strong></td><td style="padding:6px 0;border-bottom:1px solid #f0f0f0;">Previous</td></tr>
+          <tr><td style="padding:6px 12px 6px 0;border-bottom:1px solid #f0f0f0;"><strong>J</strong></td><td style="padding:6px 0;border-bottom:1px solid #f0f0f0;">Next</td></tr>
+          <tr><td style="padding:6px 12px 6px 0;border-bottom:1px solid #f0f0f0;">C / D</td><td style="padding:6px 0;border-bottom:1px solid #f0f0f0;">New Message</td></tr>
+          <tr><td style="padding:6px 12px 6px 0;border-bottom:1px solid #f0f0f0;">/</td><td style="padding:6px 0;border-bottom:1px solid #f0f0f0;">Search</td></tr>
+          <tr><td style="padding:6px 12px 6px 0;border-bottom:1px solid #f0f0f0;">M</td><td style="padding:6px 0;border-bottom:1px solid #f0f0f0;"><a href="https://youtube.com/clip/Ugkxo1qdkfl9Fed8cu5PyT1E7EOjY5tWRXxx" target="_blank">Mute + Archive</a></td></tr>
+          <tr><td style="padding:6px 12px 6px 0;">B</td><td style="padding:6px 0;"><a href="https://youtube.com/clip/UgkxcgTzZ7iEhLMS2FjikbIPBHoYX3YvoB5Y" target="_blank">Snooze</a></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+// Show/hide the expand link based on privacy mode
+document.addEventListener('DOMContentLoaded', function() {
+  const gpcDisplay = document.getElementById('gpc-display');
+  const shortcutExpand = document.getElementById('shortcutExpand');
+  if (gpcDisplay && shortcutExpand) {
+    // Check initial privacy state
+    if (document.body.classList.contains('privacy-mode')) {
+      shortcutExpand.style.display = 'block';
+    }
+    // Watch for privacy mode toggle
+    gpcDisplay.addEventListener('click', function() {
+      setTimeout(function() {
+        shortcutExpand.style.display = document.body.classList.contains('privacy-mode') ? 'block' : 'none';
+      }, 50);
+    });
+  }
+});
+
+function openShortcutModal() {
+  document.getElementById('shortcutModal').classList.add('active');
+}
+</script>
 
   </div>
 
