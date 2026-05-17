@@ -289,6 +289,17 @@ body.privacy-mode .mail-from {
   flex-shrink: 0;
 }
 
+.mail-subject,
+.mail-sender {
+  overflow-wrap: break-word;
+  word-break: break-word;
+  max-width: 100%;
+}
+
+#inbox {
+  overflow-x: hidden;
+}
+
   
 </style>
 </head>
@@ -1562,7 +1573,10 @@ async function fetchContentOnly(messageId, folderId) {
         let htmlContent = contentMsg.htmlContent || contentMsg.content || contentMsg.body || '';
         if (htmlContent) {
           htmlContent = htmlContent.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '').replace(/on\w+=["'][^"']*["']/gi, '');
-          document.getElementById('modalBody').innerHTML = `<div style="line-height:1.65;font-size:15.2px;padding:8px 4px;">${htmlContent}</div>`;
+          document.getElementById('modalBody').innerHTML = `
+  <div style="line-height:1.65;font-size:15.2px;padding:8px 4px;overflow-wrap:break-word;word-break:break-word;max-width:100%;">${htmlContent}</div>
+`;
+
         } else {
           const plainText = contentMsg.content || contentMsg.textContent || '(No content)';
           document.getElementById('modalBody').innerHTML = `<pre style="white-space:pre-wrap;font-family:inherit;margin:0;font-size:0.95em;line-height:1.6;background:#f8f9fa;padding:15px;border-radius:8px;">${escapeHtml(plainText)}</pre>`;
