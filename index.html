@@ -991,18 +991,18 @@ function renderInbox(messages) {
   }
   let html = `<p>Showing ${messages.length} messages:</p>`;
 
-    messages.forEach(msg => {
+  messages.forEach(msg => {
     const messageId = msg.messageId || msg.id;
     if (messageId) messageStore.set(String(messageId), msg);
 
     const sub = msg.subject || "(No subject)";
-    const clip = hasAttachments(msg) ? ' 📎' : '';                     // ← added
     const from = msg.fromAddress || msg.sender || "Unknown";
     const date = parseDate(msg);
     const snippet = msg.summary || msg.snippet || "";
     const storedOverride = readStatusOverrides.get(String(messageId));
     const isUnread = storedOverride !== undefined ? (storedOverride === "0") : (msg.status === "0");
     
+    // ✅ FIX: ignore "flag_not_set" and empty
     let flag = msg.flagid || '';
     if (flag === 'flag_not_set' || flag === 'none' || flag === '') flag = '';
 
@@ -1011,7 +1011,7 @@ function renderInbox(messages) {
            data-message-id="${escapeHtml(messageId || '')}"
            data-folder-id="${escapeHtml(msg.folderId || '')}"
            style="cursor:pointer;">
-        <div class="mail-subject">${escapeHtml(sub)}${clip}</div>     <!-- ← clip added -->
+        <div class="mail-subject">${escapeHtml(sub)}</div>
         <div class="mail-sender">${escapeHtml(from)}</div>
         <div class="mail-meta">
           ${getGPCBadgeHTML(date)}
@@ -1020,7 +1020,6 @@ function renderInbox(messages) {
         <div class="mail-preview">${escapeHtml(snippet)}</div>
       </div>`;
   });
-
   inboxDiv.innerHTML = html;
 }
 
@@ -1364,8 +1363,7 @@ function renderMessageWithMeta(msg) {
   }
   
   const subject = msg.subject || '(No subject)';
-  document.getElementById('modalSubject').textContent = subject + (hasAttachments(msg) ? ' 📎' : '');
-
+  document.getElementById('modalSubject').textContent = subject;
   
   let from = 'Unknown';
   const fromField = msg.fromAddress || msg.sender || msg.senderAddress || msg.from;
