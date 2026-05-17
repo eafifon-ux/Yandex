@@ -1125,58 +1125,61 @@ async function deleteCurrentMessage() {
   const accountId = await getAccountId();
   if (!accountId) return;
 
-  // Get the Trash folder ID
+  // Try multiple endpoints, gracefully fall back
   const trashFolderId = await getTrashFolderId();
-  if (!trashFolderId) {
-    alert('Could not find Trash folder ID.');
-    return;
-  }
-
   const proxy = "https://corsproxy.io/?";
-  const url = `https://mail.zoho.in/api/accounts/${accountId}/messages/move`;
-
-  try {
-    const res = await fetch(proxy + encodeURIComponent(url), {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Zoho-oauthtoken ' + token,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        messageIds: [String(messageId)],
-        folderId: trashFolderId
-      })
+  const endpoints = [
+    { url: `https://mail.zoho.in/api/accounts/${accountId}/messages/trash`, body: { messageIds: [String(messageId)] } },
+    { url: `https://mail.zoho.in/api/accounts/${accountId}/messages/actions/trash`, body: { messageIds: [String(messageId)] } },
+    { url: `https://mail.zoho.in/api/accounts/${accountId}/messages/markspam`, body: { messageIds: [String(messageId)] } }
+  ];
+  if (trashFolderId) {
+    endpoints.push({
+      url: `https://mail.zoho.in/api/accounts/${accountId}/messages/move`,
+      body: { messageIds: [String(messageId)], folderId: trashFolderId }
     });
-
-    if (!res.ok) {
-      const responseBody = await res.text();
-      const debugInfo = `HTTP ${res.status}\nURL: ${url}\nResponse: ${responseBody.substring(0, 1000)}`;
-      throw new Error(debugInfo);
-    }
-
-    alert('✅ Message moved to Trash');
-    closeEmailModal();
-    fetchZohoInbox();
-  } catch (e) {
-    const errorMessage = e.message;
-    alert('❌ Delete failed:\n\n' + errorMessage);
-    const debugText = `Delete Failed Debug Info:\n${errorMessage}\n\nAccount ID: ${accountId}\nMessage ID: ${messageId}`;
-    // Copy to clipboard
-    const textArea = document.createElement('textarea');
-    textArea.value = debugText;
-    document.body.appendChild(textArea);
-    textArea.select();
-    document.execCommand('copy');
-    document.body.removeChild(textArea);
   }
-}
 
+  for (const { url, body } of endpoints) {
+    try {
+      const res = await fetch(proxy + encodeURIComponent(url), {
+        method: 'POST',
+        headers: { 'Authorization': 'Zoho-oauthtoken ' + token, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (res.ok) {
+        alert('✅ Message moved to Trash');
+        closeEmailModal();
+        fetchZohoInbox();
+        return;
+      }
+    } catch (e) {
+      console.warn('Endpoint error:', url, e.message);
+    }
+  }
+
+  // All failed – debug info
+  const debug = `Delete failed for account ${accountId}, message ${messageId}. Tried:\n${endpoints.map(e => e.url).join('\n')}`;
+  alert('❌ Delete failed. Debug copied to clipboard.');
+  const ta = document.createElement('textarea');
+  ta.value = debug;
+  document.body.appendChild(ta);
+  ta.select();
+  document.execCommand('copy');
+  document.body.removeChild(ta);
+}
 
 async function getTrashFolderId() {
   const folders = await fetchFolders();
-  const trash = folders.find(f => f.folderName.toLowerCase().includes('trash'));
+  if (!folders || folders.length === 0) return null;
+  const trash = folders.find(f =>
+    f.folderName.toLowerCase().includes('trash') ||
+    f.folderName.toLowerCase().includes('deleted') ||
+    f.folderName.toLowerCase() === 'bin'
+  );
   return trash ? trash.folderId : null;
 }
+
 
 
 
