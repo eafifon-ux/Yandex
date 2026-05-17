@@ -289,11 +289,6 @@ body.privacy-mode .mail-from {
   flex-shrink: 0;
 }
 
-  #flag-filter-bar {
-  margin-bottom: 16px;
-  }
-
-
   
 </style>
 </head>
@@ -527,22 +522,24 @@ function openShortcutModal() {
       <div id="folderDebug" style="background:#ffe0e0; color:#b00; padding:10px; margin:10px 0; border:1px solid red; font-size:0.9em; white-space:pre-wrap; display:none; width:100%;"></div>
     </div>
     <!-- Add this right after the folder dropdown (inside the card) -->
-<div id="flag-filter-bar" style="margin-bottom:10px;">
+<div id="flag-filter-bar" style="margin-bottom:20px;">
   <div style="font-weight:600; font-size:0.9em; color:#555; margin-bottom:4px;">Flags:</div>
   <div style="display:flex; flex-direction:column; gap:4px;">
     <button class="flag-pill" data-flag="">
       <span class="flag-emoji"></span> All
     </button>
     <button class="flag-pill" data-flag="follow-up">
-      <span class="flag-emoji">🟠</span> Follow Up
+      <span class="flag-emoji">🟠</span> 1. Follow Up
     </button>
     <button class="flag-pill" data-flag="important">
-      <span class="flag-emoji">🟡</span> Waiting
+      <span class="flag-emoji">🟡</span> 2. Waiting
     </button>
     <button class="flag-pill" data-flag="info">
-      <span class="flag-emoji">🔵</span> Read Through
+      <span class="flag-emoji">🔵</span> 3. Read Through
     </button>
   </div>
+  <div style="height:20px;"></div>
+
 
     <button id="loadInboxBtn" onclick="fetchZohoInbox()">Load Inbox</button>
     <span style="line-height:2; color:#888;">(Filters applied)</span>
