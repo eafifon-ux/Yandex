@@ -1125,14 +1125,23 @@ async function deleteCurrentMessage() {
   const accountId = await getAccountId();
   if (!accountId) return;
 
-  // Try multiple endpoints, gracefully fall back
+  // Collect all potentially valid endpoints (try every known pattern)
   const trashFolderId = await getTrashFolderId();
   const proxy = "https://corsproxy.io/?";
-  const endpoints = [
-    { url: `https://mail.zoho.in/api/accounts/${accountId}/messages/trash`, body: { messageIds: [String(messageId)] } },
-    { url: `https://mail.zoho.in/api/accounts/${accountId}/messages/actions/trash`, body: { messageIds: [String(messageId)] } },
-    { url: `https://mail.zoho.in/api/accounts/${accountId}/messages/markspam`, body: { messageIds: [String(messageId)] } }
+  const endpoints = [];
+
+  // 1. Direct trash endpoints
+  const trashUrls = [
+    `https://mail.zoho.in/api/accounts/${accountId}/messages/trash`,
+    `https://mail.zoho.in/api/accounts/${accountId}/messages/actions/trash`,
+    `https://mail.zoho.in/api/v1/accounts/${accountId}/messages/trash`,
+    `https://mail.zoho.in/api/v2/accounts/${accountId}/messages/trash`,
+    `https://mail.zoho.in/api/mail/v1/accounts/${accountId}/messages/trash`,
+    `https://mail.zoho.in/api/mail/v2/accounts/${accountId}/messages/trash`
   ];
+  trashUrls.forEach(url => endpoints.push({ url, body: { messageIds: [String(messageId)] } }));
+
+  // 2. Move to folder (if trash folder exists)
   if (trashFolderId) {
     endpoints.push({
       url: `https://mail.zoho.in/api/accounts/${accountId}/messages/move`,
@@ -1140,6 +1149,22 @@ async function deleteCurrentMessage() {
     });
   }
 
+  // 3. Mark as spam (alternative)
+  const spamUrls = [
+    `https://mail.zoho.in/api/accounts/${accountId}/messages/markspam`,
+    `https://mail.zoho.in/api/v1/accounts/${accountId}/messages/markspam`,
+    `https://mail.zoho.in/api/v2/accounts/${accountId}/messages/markspam`
+  ];
+  spamUrls.forEach(url => endpoints.push({ url, body: { messageIds: [String(messageId)] } }));
+
+  // 4. Try delete (unofficial but sometimes available)
+  const deleteUrls = [
+    `https://mail.zoho.in/api/accounts/${accountId}/messages/delete`,
+    `https://mail.zoho.in/api/v1/accounts/${accountId}/messages/delete`
+  ];
+  deleteUrls.forEach(url => endpoints.push({ url, body: { messageIds: [String(messageId)] } }));
+
+  // Try each endpoint in order
   for (const { url, body } of endpoints) {
     try {
       const res = await fetch(proxy + encodeURIComponent(url), {
@@ -1158,15 +1183,19 @@ async function deleteCurrentMessage() {
     }
   }
 
-  // All failed – debug info
+  // All API endpoints failed – fallback: open in Zoho web
   const debug = `Delete failed for account ${accountId}, message ${messageId}. Tried:\n${endpoints.map(e => e.url).join('\n')}`;
-  alert('❌ Delete failed. Debug copied to clipboard.');
+  alert('❌ API delete failed. Opening message in Zoho web for manual action. Debug info copied to clipboard.');
   const ta = document.createElement('textarea');
   ta.value = debug;
   document.body.appendChild(ta);
   ta.select();
   document.execCommand('copy');
   document.body.removeChild(ta);
+
+  // Open in Zoho web interface
+  const webUrl = `https://mail.zoho.in/mail/read/${accountId}?messageId=${messageId}`;
+  window.open(webUrl, '_blank');
 }
 
 async function getTrashFolderId() {
