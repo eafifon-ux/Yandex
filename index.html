@@ -512,13 +512,14 @@ function openShortcutModal() {
       <div id="folderDebug" style="background:#ffe0e0; color:#b00; padding:10px; margin:10px 0; border:1px solid red; font-size:0.9em; white-space:pre-wrap; display:none; width:100%;"></div>
     </div>
     <!-- Add this right after the folder dropdown (inside the card) -->
-<div id="flag-filter-bar" style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:10px;">
-  <span style="font-weight:600; font-size:0.9em; color:#555;">Flags:</span>
-  <button class="flag-pill active" data-flag="">All</button>
-  <button class="flag-pill" data-flag="follow-up">🟠 Follow Up</button>
-  <button class="flag-pill" data-flag="important">🟡 Waiting</button>
-  <button class="flag-pill" data-flag="info">🔵 Read Through</button>
-</div>
+<div id="flag-filter-bar" style="margin-bottom:10px;">
+  <div style="font-weight:600; font-size:0.9em; color:#555; margin-bottom:4px;">Flags:</div>
+  <div style="display:flex; flex-direction:column; gap:4px;">
+    <button class="flag-pill active" data-flag="">All</button>
+    <button class="flag-pill" data-flag="follow-up">🟠 Follow Up</button>
+    <button class="flag-pill" data-flag="important">🟡 Waiting</button>
+    <button class="flag-pill" data-flag="info">🔵 Read Through</button>
+  </div>
 
     <button id="loadInboxBtn" onclick="fetchZohoInbox()">Load Inbox</button>
     <span style="line-height:2; color:#888;">(Filters applied)</span>
