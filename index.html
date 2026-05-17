@@ -1151,26 +1151,18 @@ async function deleteCurrentMessage() {
   } catch (e) {
     const errorMessage = e.message;
     alert('❌ Delete failed:\n\n' + errorMessage);
-    
-    // Copy full debug to clipboard
+
+    // ✅ Copy debug info using reliable temporary textarea
     const debugText = `Delete Failed Debug Info:\n${errorMessage}\n\nAccount ID: ${accountId}\nMessage ID: ${messageId}`;
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(debugText).catch(() => fallbackCopy(debugText));
-    } else {
-      fallbackCopy(debugText);
-    }
+    const textArea = document.createElement('textarea');
+    textArea.value = debugText;
+    document.body.appendChild(textArea);
+    textArea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textArea);
   }
 }
 
-// Helper fallback for copying text
-function fallbackCopy(text) {
-  const textArea = document.createElement('textarea');
-  textArea.value = text;
-  document.body.appendChild(textArea);
-  textArea.select();
-  document.execCommand('copy');
-  document.body.removeChild(textArea);
-}
 
 
 
