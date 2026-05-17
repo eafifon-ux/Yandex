@@ -1053,9 +1053,11 @@ function filterByDOYMonth(messages, month) {
 function applyFilters(messages) {
   let filtered = messages;
   // --- Flag filter ---
+// --- Flag filter ---
 if (currentFlagFilter) {
-  filtered = filtered.filter(m => (m.flagid || '') === currentFlagFilter);
+  filtered = filtered.filter(m => normalizeFlag(m.flagid) === currentFlagFilter);
 }
+
 
   // Apply date mode filter (DOY/DOS/DOM)
   if (doyActive && currentDOYMonth !== null) {
@@ -1116,8 +1118,9 @@ function renderInbox(messages) {
     const isUnread = storedOverride !== undefined ? (storedOverride === "0") : (msg.status === "0");
     
     // ✅ FIX: ignore "flag_not_set" and empty
-    let flag = msg.flagid || '';
-    if (flag === 'flag_not_set' || flag === 'none' || flag === '') flag = '';
+    let flag = normalizeFlag(msg.flagid);
+if (!flag) flag = '';
+
 
     html += `
       <div class="mail${isUnread ? ' unread' : ''}"
