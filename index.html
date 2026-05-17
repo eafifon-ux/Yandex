@@ -634,6 +634,19 @@ const GPC = {
 };
 GPC.initHeptads();
 
+function normalizeFlag(flagid) {
+  if (!flagid || flagid === 'flag_not_set') return '';
+  const map = {
+    'follow-up': 'followup',
+    'followup': 'followup',
+    'important': 'important',
+    'info': 'info'
+  };
+  const lower = flagid.toLowerCase().trim();
+  return map[lower] || lower; // fallback to original if unmapped
+}
+
+
 // ----- toggle state -----
 let doyActive = true;
 let dosActive = false;
@@ -1057,6 +1070,7 @@ function applyFilters(messages) {
 if (currentFlagFilter) {
   filtered = filtered.filter(m => normalizeFlag(m.flagid) === currentFlagFilter);
 }
+
 
 
   // Apply date mode filter (DOY/DOS/DOM)
