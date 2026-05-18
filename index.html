@@ -1475,26 +1475,41 @@ async function fetchSingleMessage(messageId, folderId) {
   const proxy = "https://corsproxy.io/?";
   const baseUrl = `https://mail.zoho.in/api/accounts/${accountId}`;
 
-  // Try the folder-specific endpoint first (includes full content)
-  const url1 = folderId
-    ? `${baseUrl}/folders/${folderId}/messages/${messageId}`
-    : `${baseUrl}/messages/${messageId}`;
-  // Fallback to generic /content endpoint
-  const url2 = `${baseUrl}/messages/${messageId}/content`;
+  // Build all possible URLs (direct + proxy, various endpoints)
+  const patterns = [
+    folderId ? `${baseUrl}/folders/${folderId}/messages/${messageId}` : null,
+    folderId ? `${baseUrl}/folders/${folderId}/messages/${messageId}/content` : null,
+    `${baseUrl}/messages/${messageId}`,
+    `${baseUrl}/messages/${messageId}/content`
+  ].filter(Boolean);
 
-  for (const url of [url1, url2]) {
+  // Try all URLs twice: once directly (may fail CORS) and once via proxy
+  const attempts = [];
+  for (const url of patterns) {
+    attempts.push(url);                           // direct
+    attempts.push(proxy + encodeURIComponent(url)); // via proxy
+  }
+
+  let lastError = '';
+
+  for (const fullUrl of attempts) {
     try {
-      const fullUrl = proxy + encodeURIComponent(url);
       const res = await fetch(fullUrl, {
         headers: { Authorization: "Zoho-oauthtoken " + token },
         signal: AbortSignal.timeout(10000)
       });
-      if (!res.ok) continue;
+      if (!res.ok) {
+        lastError = `HTTP ${res.status} for ${fullUrl.replace(token, 'TOKEN')}`;
+        continue;
+      }
       const data = await res.json();
       const msg = data.data;
-      // Ensure we have body content – try to fetch content separately if missing
+      if (!msg) {
+        lastError = `No data in response for ${fullUrl.replace(token, 'TOKEN')}`;
+        continue;
+      }
+      // If body is missing, try the content endpoint separately
       if (!msg.htmlContent && !msg.content && !msg.body) {
-        // If the body is missing, try the /content endpoint
         const contentUrl = proxy + encodeURIComponent(`${baseUrl}/messages/${messageId}/content`);
         const contentRes = await fetch(contentUrl, {
           headers: { Authorization: "Zoho-oauthtoken " + token },
@@ -1512,13 +1527,22 @@ async function fetchSingleMessage(messageId, folderId) {
       renderMessage(msg);
       return;
     } catch (e) {
-      // continue to next URL
+      lastError = e.message;
     }
   }
 
-  // Final fallback: show error
-  document.getElementById('modalBody').innerHTML = `<div class="error-message">❌ Failed to load message. Check console or retry.</div>`;
+  // All attempts failed – show detailed error
+  document.getElementById('modalBody').innerHTML = `
+    <div class="error-message">
+      <strong>❌ Failed to load message</strong><br>
+      <small>Account: ${accountId} | Msg: ${messageId} | Folder: ${folderId || 'none'}</small><br><br>
+      <strong>Last error:</strong> ${escapeHtml(lastError)}<br><br>
+      <button class="copy-btn" onclick="navigator.clipboard.writeText('Account: ${accountId}\\nMsg: ${messageId}\\nFolder: ${folderId || 'none'}\\nError: ${escapeHtml(lastError)}').catch(()=>alert('Copy failed'))">📋 Copy error</button>
+      <br><br>
+      <button onclick="fetchZohoInbox()" style="background:#1e6cff;color:white;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;">🔄 Refresh inbox & try again</button>
+    </div>`;
 }
+
 
 
 
