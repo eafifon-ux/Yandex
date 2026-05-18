@@ -1472,17 +1472,29 @@ async function fetchSingleMessage(messageId, folderId) {
   const accountId = await getAccountId();
   if (!accountId) return;
 
-  // 1. Try to get metadata from the inbox cache first (subject, from, date)
+  const proxy = "https://corsproxy.io/?";
+  const baseUrl = `https://mail.zoho.in/api/accounts/${accountId}`;
+
+  // 1. Try to get metadata from the inbox list cache
   let msg = messageStore.get(String(messageId));
   if (msg) {
-    // We have partial data from inbox list – start rendering immediately
-    // but still fetch full body content
-    renderMessagePartial(msg);
+    // Render subject/from/date immediately from cache
+    document.getElementById('modalSubject').textContent = msg.subject || '(No subject)';
+    document.getElementById('modalFrom').textContent = 'From: ' + (msg.fromAddress || msg.sender || 'Unknown');
+    document.getElementById('modalTo').textContent = 'To: ' + (msg.toAddress || 'Unknown');
+    const dateObj = parseDate(msg);
+    document.getElementById('modalDateZulu').textContent = formatZuluTime(dateObj);
+    document.getElementById('modalBody').innerHTML = '<div class="loading-text">⏳ Loading full message…</div>';
+  } else {
+    // Fallback: show placeholders while loading
+    document.getElementById('modalSubject').textContent = 'Loading…';
+    document.getElementById('modalFrom').textContent = 'From: …';
+    document.getElementById('modalTo').textContent = 'To: …';
+    document.getElementById('modalDateZulu').textContent = '…';
+    document.getElementById('modalBody').innerHTML = '<div class="loading-text">⏳ Loading message…</div>';
   }
 
   // 2. Fetch full metadata from API (best effort)
-  const proxy = "https://corsproxy.io/?";
-  const baseUrl = `https://mail.zoho.in/api/accounts/${accountId}`;
   const metaUrls = [];
   if (folderId) {
     metaUrls.push(proxy + encodeURIComponent(`${baseUrl}/folders/${folderId}/messages/${messageId}`));
@@ -1505,13 +1517,12 @@ async function fetchSingleMessage(messageId, folderId) {
     } catch (e) {}
   }
 
+  // Merge metadata into stored message
   if (metaMsg) {
-    // Merge metadata into the stored message
     Object.assign(msg || {}, metaMsg);
-    messageStore.set(String(messageId), Object.assign(msg || metaMsg, { _fullContent: true }));
   }
 
-  // 3. Fetch body content (always needed)
+  // 3. Fetch body content from /content endpoint (always works)
   const contentUrl = proxy + encodeURIComponent(`${baseUrl}/messages/${messageId}/content`);
   try {
     const contentRes = await fetch(contentUrl, {
@@ -1528,32 +1539,14 @@ async function fetchSingleMessage(messageId, folderId) {
     }
   } catch (e) {}
 
-  // 4. Final render – use whatever we have
+  // 4. Final render with whatever we have
   if (msg) {
     msg._fullContent = true;
     messageStore.set(String(messageId), msg);
-    renderMessage(msg);
-  } else {
-    // If we have nothing, try to get from API only (rare)
-    const fallbackMsg = metaMsg || messageStore.get(String(messageId));
-    if (fallbackMsg) {
-      renderMessage(fallbackMsg);
-    } else {
-      document.getElementById('modalBody').innerHTML = `<div class="error-message">❌ Could not load message. Try again.</div>`;
-    }
   }
+  renderMessage(msg || metaMsg || { messageId, folderId });
 }
 
-// New helper – render with what we have immediately
-function renderMessagePartial(msg) {
-  if (!msg) return;
-  document.getElementById('modalSubject').textContent = msg.subject || '(No subject)';
-  document.getElementById('modalFrom').textContent = 'From: ' + (msg.fromAddress || msg.sender || 'Unknown');
-  document.getElementById('modalTo').textContent = 'To: ' + (msg.toAddress || 'Unknown');
-  const dateObj = parseDate(msg);
-  document.getElementById('modalDateZulu').textContent = formatZuluTime(dateObj);
-  document.getElementById('modalBody').innerHTML = '<div class="loading-text">⏳ Loading full message…</div>';
-}
 
 
 
@@ -1588,53 +1581,7 @@ function closeEmailModal() {
 }
 
 
-function renderMessageWithMeta(msg) {
-  if (!msg) {
-    document.getElementById('modalBody').innerHTML = '<div class="error-message">Message not found.</div>';
-    return;
-  }
-  
-  const subject = msg.subject || '(No subject)';
-  document.getElementById('modalSubject').textContent = subject;
-  
-  let from = 'Unknown';
-  const fromField = msg.fromAddress || msg.sender || msg.senderAddress || msg.from;
-  if (fromField) {
-    if (typeof fromField === 'string') from = fromField;
-    else if (typeof fromField === 'object') from = fromField.emailAddress || fromField.name || JSON.stringify(fromField);
-  }
-  document.getElementById('modalFrom').textContent = 'From: ' + from;
-  
-  let to = '';
-  const toField = msg.toAddress || msg.recipients || msg.to;
-  if (toField) {
-    if (typeof toField === 'string') to = toField;
-    else if (Array.isArray(toField)) {
-      to = toField.map(item => (typeof item === 'string' ? item : item.emailAddress || item.name || '')).filter(Boolean).join(', ');
-    } else if (typeof toField === 'object') to = toField.emailAddress || toField.name || JSON.stringify(toField);
-  }
-  document.getElementById('modalTo').textContent = 'To: ' + (to || 'Unknown');
-  
-  const dateObj = parseDate(msg);
-  const modalEl = document.getElementById('modalDateZulu');
-  
-  // Make modal look like SUN mode (blue date + orange time) in ALL modes
-  modalEl.innerHTML = getGPCBadgeHTML(dateObj);
-  const toggleBtn = document.getElementById('readToggleBtn');
-toggleBtn.style.display = 'inline-block';
-const msgId = String(msg.messageId || msg.id);
-const override = readStatusOverrides.get(msgId);
-const currentStatus = override !== undefined ? override : (msg.status || "1");
-toggleBtn.textContent = currentStatus === "0" ? '🔵' : '⭕';
 
-
-toggleBtn.onclick = () => toggleReadStatusInModal(msgId, currentStatus);
-
-  
-  document.getElementById('modalBody').innerHTML = '<div class="loading-text">Loading message body...</div>';
-  fetchContentOnly(msg.messageId || msg.id, msg.folderId);
-  currentModalMessage = msg; // so reply/forward can use it
-}
 
 
 
