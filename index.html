@@ -1472,62 +1472,89 @@ async function fetchSingleMessage(messageId, folderId) {
   const accountId = await getAccountId();
   if (!accountId) return;
 
+  // 1. Try to get metadata from the inbox cache first (subject, from, date)
+  let msg = messageStore.get(String(messageId));
+  if (msg) {
+    // We have partial data from inbox list – start rendering immediately
+    // but still fetch full body content
+    renderMessagePartial(msg);
+  }
+
+  // 2. Fetch full metadata from API (best effort)
   const proxy = "https://corsproxy.io/?";
   const baseUrl = `https://mail.zoho.in/api/accounts/${accountId}`;
-
-  // Step 1: Fetch full message metadata (subject, from, to, date)
   const metaUrls = [];
   if (folderId) {
-    metaUrls.push(`${baseUrl}/folders/${folderId}/messages/${messageId}`);
     metaUrls.push(proxy + encodeURIComponent(`${baseUrl}/folders/${folderId}/messages/${messageId}`));
   }
-  metaUrls.push(`${baseUrl}/messages/${messageId}`);
   metaUrls.push(proxy + encodeURIComponent(`${baseUrl}/messages/${messageId}`));
 
-  let msg = null;
-
+  let metaMsg = null;
   for (const url of metaUrls) {
     try {
       const res = await fetch(url, {
         headers: { Authorization: "Zoho-oauthtoken " + token },
-        signal: AbortSignal.timeout(10000)
+        signal: AbortSignal.timeout(8000)
       });
       if (!res.ok) continue;
       const data = await res.json();
       if (data.data) {
-        msg = data.data;
-        break; // got metadata
+        metaMsg = data.data;
+        break;
       }
     } catch (e) {}
   }
 
-  if (!msg) {
-    document.getElementById('modalBody').innerHTML = `<div class="error-message">❌ Failed to load message metadata.</div>`;
-    return;
+  if (metaMsg) {
+    // Merge metadata into the stored message
+    Object.assign(msg || {}, metaMsg);
+    messageStore.set(String(messageId), Object.assign(msg || metaMsg, { _fullContent: true }));
   }
 
-  // Step 2: Fetch body content if not already present
-  if (!msg.htmlContent && !msg.content && !msg.body) {
-    const contentUrl = proxy + encodeURIComponent(`${baseUrl}/messages/${messageId}/content`);
-    try {
-      const contentRes = await fetch(contentUrl, {
-        headers: { Authorization: "Zoho-oauthtoken " + token },
-        signal: AbortSignal.timeout(8000)
-      });
-      if (contentRes.ok) {
-        const contentData = await contentRes.json();
-        const contentMsg = contentData.data;
-        if (contentMsg) {
-          msg.htmlContent = contentMsg.htmlContent;
-          msg.content = contentMsg.content || contentMsg.body;
-        }
+  // 3. Fetch body content (always needed)
+  const contentUrl = proxy + encodeURIComponent(`${baseUrl}/messages/${messageId}/content`);
+  try {
+    const contentRes = await fetch(contentUrl, {
+      headers: { Authorization: "Zoho-oauthtoken " + token },
+      signal: AbortSignal.timeout(8000)
+    });
+    if (contentRes.ok) {
+      const contentData = await contentRes.json();
+      const contentMsg = contentData.data;
+      if (contentMsg) {
+        (msg || {}).htmlContent = contentMsg.htmlContent;
+        (msg || {}).content = contentMsg.content || contentMsg.body;
       }
-    } catch (e) {}
-  }
+    }
+  } catch (e) {}
 
-  // Step 3: Render (now msg has both metadata and body)
-  renderMessage(msg);
+  // 4. Final render – use whatever we have
+  if (msg) {
+    msg._fullContent = true;
+    messageStore.set(String(messageId), msg);
+    renderMessage(msg);
+  } else {
+    // If we have nothing, try to get from API only (rare)
+    const fallbackMsg = metaMsg || messageStore.get(String(messageId));
+    if (fallbackMsg) {
+      renderMessage(fallbackMsg);
+    } else {
+      document.getElementById('modalBody').innerHTML = `<div class="error-message">❌ Could not load message. Try again.</div>`;
+    }
+  }
 }
+
+// New helper – render with what we have immediately
+function renderMessagePartial(msg) {
+  if (!msg) return;
+  document.getElementById('modalSubject').textContent = msg.subject || '(No subject)';
+  document.getElementById('modalFrom').textContent = 'From: ' + (msg.fromAddress || msg.sender || 'Unknown');
+  document.getElementById('modalTo').textContent = 'To: ' + (msg.toAddress || 'Unknown');
+  const dateObj = parseDate(msg);
+  document.getElementById('modalDateZulu').textContent = formatZuluTime(dateObj);
+  document.getElementById('modalBody').innerHTML = '<div class="loading-text">⏳ Loading full message…</div>';
+}
+
 
 
 
