@@ -1466,84 +1466,6 @@ async function populateFolderList() {
   showDebug(`✅ Folder dropdown updated with ${folders.length} folders`);
 }
 
-async function fetchSingleMessage(messageId, folderId) {
-  const token = getToken();
-  if (!token) return;
-  const accountId = await getAccountId();
-  if (!accountId) return;
-
-  const proxy = "https://corsproxy.io/?";
-  const baseUrl = `https://mail.zoho.in/api/accounts/${accountId}`;
-
-  // 1. Use cached inbox data immediately (subject, from, date)
-  let msg = messageStore.get(String(messageId));
-  if (msg) {
-    document.getElementById('modalSubject').textContent = msg.subject || '(No subject)';
-    document.getElementById('modalFrom').textContent = 'From: ' + (msg.fromAddress || msg.sender || 'Unknown');
-    document.getElementById('modalTo').textContent = 'To: ' + (msg.toAddress || 'Unknown');
-    const dateObj = parseDate(msg);
-    document.getElementById('modalDateZulu').textContent = formatZuluTime(dateObj);
-    document.getElementById('modalBody').innerHTML = '<div class="loading-text">⏳ Loading full message…</div>';
-  } else {
-    document.getElementById('modalSubject').textContent = 'Loading…';
-    document.getElementById('modalFrom').textContent = 'From: …';
-    document.getElementById('modalTo').textContent = 'To: …';
-    document.getElementById('modalDateZulu').textContent = '…';
-    document.getElementById('modalBody').innerHTML = '<div class="loading-text">⏳ Loading message…</div>';
-  }
-
-  // 2. Attempt full metadata fetch (optional)
-  const metaUrls = [];
-  if (folderId) {
-    metaUrls.push(proxy + encodeURIComponent(`${baseUrl}/folders/${folderId}/messages/${messageId}`));
-  }
-  metaUrls.push(proxy + encodeURIComponent(`${baseUrl}/messages/${messageId}`));
-  for (const url of metaUrls) {
-    try {
-      const res = await fetch(url, {
-        headers: { Authorization: "Zoho-oauthtoken " + token },
-        signal: AbortSignal.timeout(6000)
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.data) Object.assign(msg || {}, data.data);
-        break;
-      }
-    } catch (e) {}
-  }
-
-  // 3. Always fetch body content via /content (this endpoint works)
-  const contentUrl = proxy + encodeURIComponent(`${baseUrl}/messages/${messageId}/content`);
-  try {
-    const contentRes = await fetch(contentUrl, {
-      headers: { Authorization: "Zoho-oauthtoken " + token },
-      signal: AbortSignal.timeout(6000)
-    });
-    if (contentRes.ok) {
-      const contentData = await contentRes.json();
-      const contentMsg = contentData.data;
-      if (contentMsg) {
-        // Preserve HTML content if present
-        if (contentMsg.htmlContent) msg.htmlContent = contentMsg.htmlContent;
-        else msg.content = contentMsg.content || contentMsg.body || '';
-      }
-    }
-  } catch (e) {}
-
-  // 4. Render final message
-  if (msg) {
-    msg._fullContent = true;
-    messageStore.set(String(messageId), msg);
-    renderMessage(msg);
-  } else {
-    document.getElementById('modalBody').innerHTML = `<div class="error-message">❌ Could not load message. Try again.</div>`;
-  }
-}
-
-
-
-
-
 
 
 
@@ -1554,18 +1476,19 @@ function openEmailModal(messageId, folderId) {
   const modal = document.getElementById('emailModal');
   modal.classList.add('active');
   document.getElementById('readToggleBtn').style.display = 'none';
-  document.getElementById('modalSubject').textContent = 'Loading…';
-  document.getElementById('modalBody').innerHTML = '<div class="loading-text">⏳ Loading message…</div>';
+  document.getElementById('modalSubject').textContent = 'Loading...';
+  document.getElementById('modalFrom').textContent = '';
+  document.getElementById('modalTo').textContent = '';
+  document.getElementById('modalDateZulu').textContent = '';
+  document.getElementById('modalBody').innerHTML = '<div class="loading-text">Loading message...</div>';
 
   const stored = messageStore.get(String(messageId));
-  if (stored && stored._fullContent) {
-    renderMessage(stored);
-    return;
+  if (stored) {
+    renderMessageWithMeta(stored);
+  } else {
+    fetchFullMessage(messageId, folderId);
   }
-
-  fetchSingleMessage(messageId, folderId);
 }
-
 
 function closeEmailModal() {
   document.getElementById('emailModal').classList.remove('active');
@@ -1574,93 +1497,246 @@ function closeEmailModal() {
 }
 
 
+function renderMessageWithMeta(msg) {
+  if (!msg) {
+    document.getElementById('modalBody').innerHTML = '<div class="error-message">Message not found.</div>';
+    return;
+  }
+  
+  const subject = msg.subject || '(No subject)';
+  document.getElementById('modalSubject').textContent = subject;
+  
+  let from = 'Unknown';
+  const fromField = msg.fromAddress || msg.sender || msg.senderAddress || msg.from;
+  if (fromField) {
+    if (typeof fromField === 'string') from = fromField;
+    else if (typeof fromField === 'object') from = fromField.emailAddress || fromField.name || JSON.stringify(fromField);
+  }
+  document.getElementById('modalFrom').textContent = 'From: ' + from;
+  
+  let to = '';
+  const toField = msg.toAddress || msg.recipients || msg.to;
+  if (toField) {
+    if (typeof toField === 'string') to = toField;
+    else if (Array.isArray(toField)) {
+      to = toField.map(item => (typeof item === 'string' ? item : item.emailAddress || item.name || '')).filter(Boolean).join(', ');
+    } else if (typeof toField === 'object') to = toField.emailAddress || toField.name || JSON.stringify(toField);
+  }
+  document.getElementById('modalTo').textContent = 'To: ' + (to || 'Unknown');
+  
+  const dateObj = parseDate(msg);
+  const modalEl = document.getElementById('modalDateZulu');
+  
+  // Make modal look like SUN mode (blue date + orange time) in ALL modes
+  modalEl.innerHTML = getGPCBadgeHTML(dateObj);
+  const toggleBtn = document.getElementById('readToggleBtn');
+toggleBtn.style.display = 'inline-block';
+const msgId = String(msg.messageId || msg.id);
+const override = readStatusOverrides.get(msgId);
+const currentStatus = override !== undefined ? override : (msg.status || "1");
+toggleBtn.textContent = currentStatus === "0" ? '🔵' : '⭕';
 
 
+toggleBtn.onclick = () => toggleReadStatusInModal(msgId, currentStatus);
 
+  
+  document.getElementById('modalBody').innerHTML = '<div class="loading-text">Loading message body...</div>';
+  fetchContentOnly(msg.messageId || msg.id, msg.folderId);
+  currentModalMessage = msg; // so reply/forward can use it
+}
+
+
+async function fetchContentOnly(messageId, folderId) {
+  if (!messageId) {
+    document.getElementById('modalBody').innerHTML = '<div class="error-message">No message ID.</div>';
+    return;
+  }
+  const token = getToken();
+  if (!token) return;
+  const accountId = await getAccountId();
+  if (!accountId) return;
+
+  const proxy = "https://corsproxy.io/?";
+  const patterns = [
+    `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}`,
+    `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}/content`,
+    folderId ? `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}` : null,
+    folderId ? `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}/content` : null
+  ].filter(Boolean);
+
+  for (const url of patterns) {
+    try {
+      const res = await fetch(proxy + encodeURIComponent(url), { headers: { Authorization: "Zoho-oauthtoken " + token } });
+      if (res.ok) {
+        const data = await res.json();
+        const contentMsg = data.data;
+        let htmlContent = contentMsg.htmlContent || contentMsg.content || contentMsg.body || '';
+        if (htmlContent) {
+          htmlContent = htmlContent.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '').replace(/on\w+=["'][^"']*["']/gi, '');
+          document.getElementById('modalBody').innerHTML = `
+  <div style="line-height:1.65;font-size:15.2px;padding:8px 4px;overflow-wrap:break-word;word-break:break-word;max-width:100%;">${htmlContent}</div>
+`;
+
+        } else {
+          const plainText = contentMsg.content || contentMsg.textContent || '(No content)';
+          document.getElementById('modalBody').innerHTML = `<pre style="white-space:pre-wrap;font-family:inherit;margin:0;font-size:0.95em;line-height:1.6;background:#f8f9fa;padding:15px;border-radius:8px;">${escapeHtml(plainText)}</pre>`;
+        }
+        return;
+      }
+    } catch(e) {}
+  }
+  document.getElementById('modalBody').innerHTML = '<div class="error-message">Failed to load message content.</div>';
+}
+
+async function fetchFullMessage(messageId, folderId) {
+  const token = getToken();
+  if (!token) return;
+  const accountId = await getAccountId();
+  if (!accountId) return;
+  if (!messageId) {
+    document.getElementById('modalBody').innerHTML = `<div class="error-message">No message ID found.</div>`;
+    return;
+  }
+
+  const proxy = "https://corsproxy.io/?";
+  let errors = [];
+  const patterns = [
+    `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}`,
+    `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}/content`,
+    folderId ? `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}` : null,
+    folderId ? `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}/content` : null
+  ].filter(Boolean);
+
+  for (const url of patterns) {
+    try {
+      const directRes = await fetch(url, { headers: { Authorization: "Zoho-oauthtoken " + token } }).catch(e => null);
+      if (directRes && directRes.ok) {
+        const data = await directRes.json();
+        renderMessage(data.data);
+        return;
+      } else {
+        const status = directRes ? directRes.status : 'CORS blocked';
+        let errorBody = '';
+        if (directRes) try { errorBody = await directRes.text(); } catch(e) {}
+        errors.push(`Direct: ${url.replace(token, 'TOKEN')} -> ${status} | ${errorBody.substring(0, 200)}`);
+      }
+    } catch(e) {
+      errors.push(`Direct error: ${url.replace(token, 'TOKEN')} -> ${e.message}`);
+    }
+    try {
+      const res = await fetch(proxy + encodeURIComponent(url), { headers: { Authorization: "Zoho-oauthtoken " + token } });
+      if (res.ok) {
+        const data = await res.json();
+        renderMessage(data.data);
+        return;
+      } else {
+        let errorBody = '';
+        try { errorBody = await res.text(); } catch(e) {}
+        const maskedUrl = url.replace(token, 'TOKEN');
+        errors.push(`Proxy: ${maskedUrl} -> HTTP ${res.status} | Body: ${errorBody.substring(0, 200)}`);
+      }
+    } catch(e) {
+      const maskedUrl = url.replace(token, 'TOKEN');
+      errors.push(`Proxy error: ${maskedUrl} -> ${e.message}`);
+    }
+  }
+  const errorText = errors.join('\n');
+  document.getElementById('modalBody').innerHTML = `
+    <div class="error-message">
+      <strong>Failed to load message</strong><br><br>
+      Account ID: ${accountId}<br>
+      Message ID: ${messageId}<br>
+      Folder ID: ${folderId || 'none'}<br><br>
+      <strong>Attempts:</strong><br>
+      <pre style="white-space:pre-wrap;font-size:0.85em;background:#ffe;padding:8px;border-radius:4px;">${escapeHtml(errorText)}</pre>
+      <button class="copy-btn" onclick="copyErrorToClipboard()">📋 Copy error details</button>
+    </div>`;
+}
+
+function copyErrorToClipboard() {
+  const content = document.querySelector('#modalBody .error-message').innerText;
+  navigator.clipboard.writeText(content).then(() => { alert('Copied!'); }).catch(() => {
+    const textArea = document.createElement('textarea');
+    textArea.value = content;
+    document.body.appendChild(textArea);
+    textArea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textArea);
+    alert('Copied!');
+  });
+}
 
 function renderMessage(msg) {
   if (!msg) {
     document.getElementById('modalBody').innerHTML = '<div class="error-message">Message not found.</div>';
     return;
   }
+  const rawHtml = '<pre style="white-space:pre-wrap;font-family:monospace;font-size:0.9em;background:#f5f5f5;padding:12px;border-radius:6px;max-height:500px;overflow:auto;">' + escapeHtml(JSON.stringify(msg, null, 2)) + '</pre>';
 
-  // Subject
-  const subject = msg.subject || '(No subject)';
+  const subject = msg.subject || msg.Subject || msg.emailSubject || msg.title || '(No subject)';
   document.getElementById('modalSubject').textContent = subject;
 
-  // From
   let from = 'Unknown';
   const fromField = msg.fromAddress || msg.FromAddress || msg.sender || msg.senderAddress || msg.from;
   if (fromField) {
-    from = typeof fromField === 'string' ? fromField : (fromField.emailAddress || fromField.name || JSON.stringify(fromField));
+    if (typeof fromField === 'string') from = fromField;
+    else if (typeof fromField === 'object') from = fromField.emailAddress || fromField.name || fromField.displayName || JSON.stringify(fromField);
   }
+  if (from === 'Unknown' && msg.mailFields) from = msg.mailFields.fromAddress || msg.mailFields.FromAddress || 'Unknown';
   document.getElementById('modalFrom').textContent = 'From: ' + from;
 
-  // To
   let to = 'Unknown';
   const toField = msg.toAddress || msg.ToAddress || msg.recipients || msg.to;
   if (toField) {
     if (typeof toField === 'string') to = toField;
     else if (Array.isArray(toField)) {
-      to = toField.map(item => typeof item === 'string' ? item : (item.emailAddress || item.name || '')).filter(Boolean).join(', ');
+      to = toField.map(item => {
+        if (typeof item === 'string') return item;
+        if (typeof item === 'object') return item.emailAddress || item.name || JSON.stringify(item);
+        return '';
+      }).filter(Boolean).join(', ');
     } else if (typeof toField === 'object') to = toField.emailAddress || toField.name || JSON.stringify(toField);
   }
+  if (to === 'Unknown' && msg.mailFields) to = msg.mailFields.toAddress || msg.mailFields.ToAddress || 'Unknown';
   document.getElementById('modalTo').textContent = 'To: ' + to;
 
-  // Date
-  const dateObj = parseDate(msg);
-  document.getElementById('modalDateZulu').textContent = formatZuluTime(dateObj);
-
-  // Body content – prefer htmlContent, then content/body
-  let htmlContent = msg.htmlContent || '';
-  let plainText = msg.content || msg.textContent || msg.summary || msg.snippet || '';
-
-  // Decode HTML entities for plain text fallback
-  function decodeEntities(text) {
-    const txt = document.createElement('textarea');
-    txt.innerHTML = text;
-    return txt.value;
+  let dateObj = new Date();
+  const rawDate = msg.date || msg.receivedDate || msg.receivedTime || msg.sentDate || msg.sentTime || msg.sentDateInGMT;
+  if (rawDate) {
+    dateObj = new Date(rawDate);
+    if (isNaN(dateObj.getTime()) && /^\d{13}$/.test(rawDate)) dateObj = new Date(parseInt(rawDate, 10));
+    if (isNaN(dateObj.getTime())) { const parsed = Date.parse(rawDate); if (!isNaN(parsed)) dateObj = new Date(parsed); }
   }
+  document.getElementById('modalDateZulu').textContent = formatZuluTime(dateObj); // full GPC+time for GPC/SUN
 
+  let htmlContent = msg.htmlContent || msg.content || msg.body || '';
   if (htmlContent) {
-    // Clean HTML (remove scripts/styles) but keep structure
-    htmlContent = htmlContent.replace(/<script[\s\S]*?<\/script>/gi, '')
-                             .replace(/<style[\s\S]*?<\/style>/gi, '')
-                             .replace(/ on\w+=["'][^"']*["']/gi, '');
+    htmlContent = htmlContent.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '').replace(/on\w+=["'][^"']*["']/gi, '');
     document.getElementById('modalBody').innerHTML = `
+      <div style="border-bottom:1px solid #eee;padding:8px;margin-bottom:12px;background:#fffbe6;font-size:0.85em;">
+        ⚠️ If From/To/Date look wrong, the raw message data is below 🔽
+      </div>
       <div style="line-height:1.65;font-size:15.2px;padding:8px 4px;">${htmlContent}</div>
       <hr style="margin:20px 0;">
       <details>
         <summary style="cursor:pointer;color:#1e6cff;font-weight:bold;">📦 Raw API Response</summary>
-        <pre style="white-space:pre-wrap;font-family:monospace;font-size:0.9em;background:#f5f5f5;padding:12px;border-radius:6px;max-height:500px;overflow:auto;">${escapeHtml(JSON.stringify(msg, null, 2))}</pre>
+        ${rawHtml}
       </details>`;
-  } else if (plainText) {
-    // Decode HTML entities to show correct characters (e.g. Hebrew)
-    const decoded = decodeEntities(plainText);
+  } else {
+    const plainText = msg.content || msg.textContent || msg.summary || msg.snippet || '(No content)';
     document.getElementById('modalBody').innerHTML = `
-      <pre style="white-space:pre-wrap;font-family:inherit;margin:0;font-size:0.95em;line-height:1.6;background:#f8f9fa;padding:15px;border-radius:8px;">${escapeHtml(decoded)}</pre>
+      <div style="border-bottom:1px solid #eee;padding:8px;margin-bottom:12px;background:#fffbe6;font-size:0.85em;">
+        ⚠️ If From/To/Date look wrong, the raw message data is below 🔽
+      </div>
+      <pre style="white-space:pre-wrap;font-family:inherit;margin:0;font-size:0.95em;line-height:1.6;background:#f8f9fa;padding:15px;border-radius:8px;">${escapeHtml(plainText)}</pre>
       <hr style="margin:20px 0;">
       <details>
         <summary style="cursor:pointer;color:#1e6cff;font-weight:bold;">📦 Raw API Response</summary>
-        <pre style="white-space:pre-wrap;font-family:monospace;font-size:0.9em;background:#f5f5f5;padding:12px;border-radius:6px;max-height:500px;overflow:auto;">${escapeHtml(JSON.stringify(msg, null, 2))}</pre>
+        ${rawHtml}
       </details>`;
-  } else {
-    document.getElementById('modalBody').innerHTML = '<div class="error-message">No message body available.</div>';
   }
-
-  // Read toggle button
-  const toggleBtn = document.getElementById('readToggleBtn');
-  toggleBtn.style.display = 'inline-block';
-  const msgId = String(msg.messageId || msg.id);
-  const override = readStatusOverrides.get(msgId);
-  const currentStatus = override !== undefined ? override : (msg.status || "1");
-  toggleBtn.textContent = currentStatus === "0" ? '🔵' : '⭕';
-  toggleBtn.onclick = () => toggleReadStatusInModal(msgId, currentStatus);
-
   currentModalMessage = msg;
 }
-
-
 
 /* ===============================
    TOGGLE HANDLERS
