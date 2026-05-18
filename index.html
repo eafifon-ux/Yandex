@@ -1466,6 +1466,40 @@ async function populateFolderList() {
   showDebug(`✅ Folder dropdown updated with ${folders.length} folders`);
 }
 
+async function fetchSingleMessage(messageId, folderId) {
+  const token = getToken();
+  if (!token) return;
+  const accountId = await getAccountId();
+  if (!accountId) return;
+
+  const proxy = "https://corsproxy.io/?";
+  const url = `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}`;
+  const fullUrl = proxy + encodeURIComponent(url);
+
+  try {
+    const res = await fetch(fullUrl, {
+      headers: { Authorization: "Zoho-oauthtoken " + token },
+      signal: AbortSignal.timeout(8000)
+    });
+    if (!res.ok) {
+      // Fallback to generic endpoint
+      const fbUrl = `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}`;
+      const fbFull = proxy + encodeURIComponent(fbUrl);
+      const res2 = await fetch(fbFull, {
+        headers: { Authorization: "Zoho-oauthtoken " + token },
+        signal: AbortSignal.timeout(8000)
+      });
+      if (!res2.ok) throw new Error(`HTTP ${res2.status}`);
+      const data = await res2.json();
+      renderMessage(data.data);
+    } else {
+      const data = await res.json();
+      renderMessage(data.data);
+    }
+  } catch (e) {
+    document.getElementById('modalBody').innerHTML = `<div class="error-message">❌ Failed to load message (${e.message})</div>`;
+  }
+}
 
 
 
@@ -1476,19 +1510,18 @@ function openEmailModal(messageId, folderId) {
   const modal = document.getElementById('emailModal');
   modal.classList.add('active');
   document.getElementById('readToggleBtn').style.display = 'none';
-  document.getElementById('modalSubject').textContent = 'Loading...';
-  document.getElementById('modalFrom').textContent = '';
-  document.getElementById('modalTo').textContent = '';
-  document.getElementById('modalDateZulu').textContent = '';
-  document.getElementById('modalBody').innerHTML = '<div class="loading-text">Loading message...</div>';
+  document.getElementById('modalSubject').textContent = 'Loading…';
+  document.getElementById('modalBody').innerHTML = '<div class="loading-text">⏳ Loading message…</div>';
 
   const stored = messageStore.get(String(messageId));
-  if (stored) {
-    renderMessageWithMeta(stored);
-  } else {
-    fetchFullMessage(messageId, folderId);
+  if (stored && stored._fullContent) {
+    renderMessage(stored);
+    return;
   }
+
+  fetchSingleMessage(messageId, folderId);
 }
+
 
 function closeEmailModal() {
   document.getElementById('emailModal').classList.remove('active');
@@ -1707,7 +1740,7 @@ function renderMessage(msg) {
     if (isNaN(dateObj.getTime()) && /^\d{13}$/.test(rawDate)) dateObj = new Date(parseInt(rawDate, 10));
     if (isNaN(dateObj.getTime())) { const parsed = Date.parse(rawDate); if (!isNaN(parsed)) dateObj = new Date(parsed); }
   }
-  document.getElementById('modalDateZulu').textContent = formatZuluTime(dateObj); // full GPC+time for GPC/SUN
+  document.getElementById('modalDateZulu').textContent = formatZuluTime(dateObj);
 
   let htmlContent = msg.htmlContent || msg.content || msg.body || '';
   if (htmlContent) {
@@ -1736,7 +1769,14 @@ function renderMessage(msg) {
       </details>`;
   }
   currentModalMessage = msg;
+
+  // ✅ Cache full message for instant reopening
+  const msgId = msg.messageId || msg.id;
+  if (msgId) {
+    messageStore.set(String(msgId), Object.assign(msg, { _fullContent: true }));
+  }
 }
+
 
 /* ===============================
    TOGGLE HANDLERS
