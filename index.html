@@ -1475,73 +1475,60 @@ async function fetchSingleMessage(messageId, folderId) {
   const proxy = "https://corsproxy.io/?";
   const baseUrl = `https://mail.zoho.in/api/accounts/${accountId}`;
 
-  // Build all possible URLs (direct + proxy, various endpoints)
-  const patterns = [
-    folderId ? `${baseUrl}/folders/${folderId}/messages/${messageId}` : null,
-    folderId ? `${baseUrl}/folders/${folderId}/messages/${messageId}/content` : null,
-    `${baseUrl}/messages/${messageId}`,
-    `${baseUrl}/messages/${messageId}/content`
-  ].filter(Boolean);
-
-  // Try all URLs twice: once directly (may fail CORS) and once via proxy
-  const attempts = [];
-  for (const url of patterns) {
-    attempts.push(url);                           // direct
-    attempts.push(proxy + encodeURIComponent(url)); // via proxy
+  // Step 1: Fetch full message metadata (subject, from, to, date)
+  const metaUrls = [];
+  if (folderId) {
+    metaUrls.push(`${baseUrl}/folders/${folderId}/messages/${messageId}`);
+    metaUrls.push(proxy + encodeURIComponent(`${baseUrl}/folders/${folderId}/messages/${messageId}`));
   }
+  metaUrls.push(`${baseUrl}/messages/${messageId}`);
+  metaUrls.push(proxy + encodeURIComponent(`${baseUrl}/messages/${messageId}`));
 
-  let lastError = '';
+  let msg = null;
 
-  for (const fullUrl of attempts) {
+  for (const url of metaUrls) {
     try {
-      const res = await fetch(fullUrl, {
+      const res = await fetch(url, {
         headers: { Authorization: "Zoho-oauthtoken " + token },
         signal: AbortSignal.timeout(10000)
       });
-      if (!res.ok) {
-        lastError = `HTTP ${res.status} for ${fullUrl.replace(token, 'TOKEN')}`;
-        continue;
-      }
+      if (!res.ok) continue;
       const data = await res.json();
-      const msg = data.data;
-      if (!msg) {
-        lastError = `No data in response for ${fullUrl.replace(token, 'TOKEN')}`;
-        continue;
+      if (data.data) {
+        msg = data.data;
+        break; // got metadata
       }
-      // If body is missing, try the content endpoint separately
-      if (!msg.htmlContent && !msg.content && !msg.body) {
-        const contentUrl = proxy + encodeURIComponent(`${baseUrl}/messages/${messageId}/content`);
-        const contentRes = await fetch(contentUrl, {
-          headers: { Authorization: "Zoho-oauthtoken " + token },
-          signal: AbortSignal.timeout(8000)
-        });
-        if (contentRes.ok) {
-          const contentData = await contentRes.json();
-          const contentMsg = contentData.data;
-          Object.assign(msg, {
-            htmlContent: contentMsg.htmlContent,
-            content: contentMsg.content || contentMsg.body
-          });
-        }
-      }
-      renderMessage(msg);
-      return;
-    } catch (e) {
-      lastError = e.message;
-    }
+    } catch (e) {}
   }
 
-  // All attempts failed – show detailed error
-  document.getElementById('modalBody').innerHTML = `
-    <div class="error-message">
-      <strong>❌ Failed to load message</strong><br>
-      <small>Account: ${accountId} | Msg: ${messageId} | Folder: ${folderId || 'none'}</small><br><br>
-      <strong>Last error:</strong> ${escapeHtml(lastError)}<br><br>
-      <button class="copy-btn" onclick="navigator.clipboard.writeText('Account: ${accountId}\\nMsg: ${messageId}\\nFolder: ${folderId || 'none'}\\nError: ${escapeHtml(lastError)}').catch(()=>alert('Copy failed'))">📋 Copy error</button>
-      <br><br>
-      <button onclick="fetchZohoInbox()" style="background:#1e6cff;color:white;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;">🔄 Refresh inbox & try again</button>
-    </div>`;
+  if (!msg) {
+    document.getElementById('modalBody').innerHTML = `<div class="error-message">❌ Failed to load message metadata.</div>`;
+    return;
+  }
+
+  // Step 2: Fetch body content if not already present
+  if (!msg.htmlContent && !msg.content && !msg.body) {
+    const contentUrl = proxy + encodeURIComponent(`${baseUrl}/messages/${messageId}/content`);
+    try {
+      const contentRes = await fetch(contentUrl, {
+        headers: { Authorization: "Zoho-oauthtoken " + token },
+        signal: AbortSignal.timeout(8000)
+      });
+      if (contentRes.ok) {
+        const contentData = await contentRes.json();
+        const contentMsg = contentData.data;
+        if (contentMsg) {
+          msg.htmlContent = contentMsg.htmlContent;
+          msg.content = contentMsg.content || contentMsg.body;
+        }
+      }
+    } catch (e) {}
+  }
+
+  // Step 3: Render (now msg has both metadata and body)
+  renderMessage(msg);
 }
+
 
 
 
