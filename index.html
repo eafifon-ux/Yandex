@@ -1473,33 +1473,53 @@ async function fetchSingleMessage(messageId, folderId) {
   if (!accountId) return;
 
   const proxy = "https://corsproxy.io/?";
-  const url = `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}`;
-  const fullUrl = proxy + encodeURIComponent(url);
+  const baseUrl = `https://mail.zoho.in/api/accounts/${accountId}`;
 
-  try {
-    const res = await fetch(fullUrl, {
-      headers: { Authorization: "Zoho-oauthtoken " + token },
-      signal: AbortSignal.timeout(8000)
-    });
-    if (!res.ok) {
-      // Fallback to generic endpoint
-      const fbUrl = `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}`;
-      const fbFull = proxy + encodeURIComponent(fbUrl);
-      const res2 = await fetch(fbFull, {
+  // Try the folder-specific endpoint first (includes full content)
+  const url1 = folderId
+    ? `${baseUrl}/folders/${folderId}/messages/${messageId}`
+    : `${baseUrl}/messages/${messageId}`;
+  // Fallback to generic /content endpoint
+  const url2 = `${baseUrl}/messages/${messageId}/content`;
+
+  for (const url of [url1, url2]) {
+    try {
+      const fullUrl = proxy + encodeURIComponent(url);
+      const res = await fetch(fullUrl, {
         headers: { Authorization: "Zoho-oauthtoken " + token },
-        signal: AbortSignal.timeout(8000)
+        signal: AbortSignal.timeout(10000)
       });
-      if (!res2.ok) throw new Error(`HTTP ${res2.status}`);
-      const data = await res2.json();
-      renderMessage(data.data);
-    } else {
+      if (!res.ok) continue;
       const data = await res.json();
-      renderMessage(data.data);
+      const msg = data.data;
+      // Ensure we have body content – try to fetch content separately if missing
+      if (!msg.htmlContent && !msg.content && !msg.body) {
+        // If the body is missing, try the /content endpoint
+        const contentUrl = proxy + encodeURIComponent(`${baseUrl}/messages/${messageId}/content`);
+        const contentRes = await fetch(contentUrl, {
+          headers: { Authorization: "Zoho-oauthtoken " + token },
+          signal: AbortSignal.timeout(8000)
+        });
+        if (contentRes.ok) {
+          const contentData = await contentRes.json();
+          const contentMsg = contentData.data;
+          Object.assign(msg, {
+            htmlContent: contentMsg.htmlContent,
+            content: contentMsg.content || contentMsg.body
+          });
+        }
+      }
+      renderMessage(msg);
+      return;
+    } catch (e) {
+      // continue to next URL
     }
-  } catch (e) {
-    document.getElementById('modalBody').innerHTML = `<div class="error-message">❌ Failed to load message (${e.message})</div>`;
   }
+
+  // Final fallback: show error
+  document.getElementById('modalBody').innerHTML = `<div class="error-message">❌ Failed to load message. Check console or retry.</div>`;
 }
+
 
 
 
@@ -1579,125 +1599,6 @@ toggleBtn.onclick = () => toggleReadStatusInModal(msgId, currentStatus);
 }
 
 
-async function fetchContentOnly(messageId, folderId) {
-  if (!messageId) {
-    document.getElementById('modalBody').innerHTML = '<div class="error-message">No message ID.</div>';
-    return;
-  }
-  const token = getToken();
-  if (!token) return;
-  const accountId = await getAccountId();
-  if (!accountId) return;
-
-  const proxy = "https://corsproxy.io/?";
-  const patterns = [
-    `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}`,
-    `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}/content`,
-    folderId ? `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}` : null,
-    folderId ? `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}/content` : null
-  ].filter(Boolean);
-
-  for (const url of patterns) {
-    try {
-      const res = await fetch(proxy + encodeURIComponent(url), { headers: { Authorization: "Zoho-oauthtoken " + token } });
-      if (res.ok) {
-        const data = await res.json();
-        const contentMsg = data.data;
-        let htmlContent = contentMsg.htmlContent || contentMsg.content || contentMsg.body || '';
-        if (htmlContent) {
-          htmlContent = htmlContent.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '').replace(/on\w+=["'][^"']*["']/gi, '');
-          document.getElementById('modalBody').innerHTML = `
-  <div style="line-height:1.65;font-size:15.2px;padding:8px 4px;overflow-wrap:break-word;word-break:break-word;max-width:100%;">${htmlContent}</div>
-`;
-
-        } else {
-          const plainText = contentMsg.content || contentMsg.textContent || '(No content)';
-          document.getElementById('modalBody').innerHTML = `<pre style="white-space:pre-wrap;font-family:inherit;margin:0;font-size:0.95em;line-height:1.6;background:#f8f9fa;padding:15px;border-radius:8px;">${escapeHtml(plainText)}</pre>`;
-        }
-        return;
-      }
-    } catch(e) {}
-  }
-  document.getElementById('modalBody').innerHTML = '<div class="error-message">Failed to load message content.</div>';
-}
-
-async function fetchFullMessage(messageId, folderId) {
-  const token = getToken();
-  if (!token) return;
-  const accountId = await getAccountId();
-  if (!accountId) return;
-  if (!messageId) {
-    document.getElementById('modalBody').innerHTML = `<div class="error-message">No message ID found.</div>`;
-    return;
-  }
-
-  const proxy = "https://corsproxy.io/?";
-  let errors = [];
-  const patterns = [
-    `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}`,
-    `https://mail.zoho.in/api/accounts/${accountId}/messages/${messageId}/content`,
-    folderId ? `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}` : null,
-    folderId ? `https://mail.zoho.in/api/accounts/${accountId}/folders/${folderId}/messages/${messageId}/content` : null
-  ].filter(Boolean);
-
-  for (const url of patterns) {
-    try {
-      const directRes = await fetch(url, { headers: { Authorization: "Zoho-oauthtoken " + token } }).catch(e => null);
-      if (directRes && directRes.ok) {
-        const data = await directRes.json();
-        renderMessage(data.data);
-        return;
-      } else {
-        const status = directRes ? directRes.status : 'CORS blocked';
-        let errorBody = '';
-        if (directRes) try { errorBody = await directRes.text(); } catch(e) {}
-        errors.push(`Direct: ${url.replace(token, 'TOKEN')} -> ${status} | ${errorBody.substring(0, 200)}`);
-      }
-    } catch(e) {
-      errors.push(`Direct error: ${url.replace(token, 'TOKEN')} -> ${e.message}`);
-    }
-    try {
-      const res = await fetch(proxy + encodeURIComponent(url), { headers: { Authorization: "Zoho-oauthtoken " + token } });
-      if (res.ok) {
-        const data = await res.json();
-        renderMessage(data.data);
-        return;
-      } else {
-        let errorBody = '';
-        try { errorBody = await res.text(); } catch(e) {}
-        const maskedUrl = url.replace(token, 'TOKEN');
-        errors.push(`Proxy: ${maskedUrl} -> HTTP ${res.status} | Body: ${errorBody.substring(0, 200)}`);
-      }
-    } catch(e) {
-      const maskedUrl = url.replace(token, 'TOKEN');
-      errors.push(`Proxy error: ${maskedUrl} -> ${e.message}`);
-    }
-  }
-  const errorText = errors.join('\n');
-  document.getElementById('modalBody').innerHTML = `
-    <div class="error-message">
-      <strong>Failed to load message</strong><br><br>
-      Account ID: ${accountId}<br>
-      Message ID: ${messageId}<br>
-      Folder ID: ${folderId || 'none'}<br><br>
-      <strong>Attempts:</strong><br>
-      <pre style="white-space:pre-wrap;font-size:0.85em;background:#ffe;padding:8px;border-radius:4px;">${escapeHtml(errorText)}</pre>
-      <button class="copy-btn" onclick="copyErrorToClipboard()">📋 Copy error details</button>
-    </div>`;
-}
-
-function copyErrorToClipboard() {
-  const content = document.querySelector('#modalBody .error-message').innerText;
-  navigator.clipboard.writeText(content).then(() => { alert('Copied!'); }).catch(() => {
-    const textArea = document.createElement('textarea');
-    textArea.value = content;
-    document.body.appendChild(textArea);
-    textArea.select();
-    document.execCommand('copy');
-    document.body.removeChild(textArea);
-    alert('Copied!');
-  });
-}
 
 function renderMessage(msg) {
   if (!msg) {
